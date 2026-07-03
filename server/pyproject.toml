@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "aeon"
 version = "2.0.0a1"
 description = "Aeon-V2 — self-hosted local-first AI workspace"
-readme = "../README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 keywords = ["memory", "AI", "agents", "local-first", "obsidian"]
