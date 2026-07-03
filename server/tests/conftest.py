@@ -5,6 +5,16 @@ from aeon.core.approval_agent import CLIAuthProvider
 
 
 @pytest.fixture(autouse=True)
+def isolated_data_root(monkeypatch, tmp_path):
+    """Point AEON_DATA_DIR at a per-test tmp dir.
+
+    Tests that call Config() with no argument would otherwise write
+    memory/ and vault/ into the repo working tree.
+    """
+    monkeypatch.setenv("AEON_DATA_DIR", str(tmp_path / "aeon-data"))
+
+
+@pytest.fixture(autouse=True)
 def reset_message_bus():
     """Reset the MessageBus singleton between tests.
 

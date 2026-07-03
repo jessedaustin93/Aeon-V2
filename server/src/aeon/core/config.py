@@ -33,7 +33,10 @@ _load_env(Path.cwd() / ".env")
 
 
 class Config:
-    def __init__(self, base_path: Path = Path(".")):
+    def __init__(self, base_path: Path | None = None):
+        if base_path is None:
+            env_root = os.environ.get("AEON_DATA_DIR", "").strip()
+            base_path = Path(env_root).expanduser() if env_root else Path(".")
         self.base_path = Path(base_path)
         self.vault_path = self.base_path / "vault"
         self.memory_path = self.base_path / "memory"
