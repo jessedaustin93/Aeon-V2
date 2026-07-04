@@ -88,6 +88,29 @@ def test_web_fetch_extracts_text(config, monkeypatch):
     assert "var x=1" not in result["text"]
 
 
+def test_web_fetch_refuses_file_scheme(config):
+    with pytest.raises(PermissionError):
+        web_mod.web_fetch({"url": "file:///etc/passwd"}, config)
+
+
+def test_web_fetch_refuses_loopback_and_metadata(config):
+    for url in ("http://localhost:1234/v1", "http://127.0.0.1:8787/",
+                "http://169.254.169.254/latest/meta-data/"):
+        with pytest.raises(PermissionError):
+            web_mod.web_fetch({"url": url}, config)
+
+
+def test_web_fetch_local_override(config, monkeypatch):
+    monkeypatch.setenv("AEON_TOOLS_WEB_ALLOW_LOCAL", "1")
+    monkeypatch.setattr(web_mod, "_http_get_transport", None, raising=False)
+    monkeypatch.setattr(
+        web_mod.urllib.request, "urlopen",
+        lambda req, timeout=0: (_ for _ in ()).throw(OSError("net disabled")),
+    )
+    with pytest.raises(OSError):  # passes the URL check, fails only at network
+        web_mod.web_fetch({"url": "http://127.0.0.1:9/"}, config)
+
+
 def test_web_search_parses_results(config, monkeypatch):
     monkeypatch.setattr(web_mod, "_http_get", lambda url, timeout=20.0: FIXTURE_SEARCH)
     result = web_mod.web_search({"query": "sdr"}, config)

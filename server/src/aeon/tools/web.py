@@ -1,6 +1,7 @@
 """Web tools: fetch a page as text, search via DuckDuckGo HTML."""
 import html
 import html.parser
+import os
 import re
 import urllib.parse
 import urllib.request
@@ -13,7 +14,30 @@ MAX_TEXT_CHARS = 100_000
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) Aeon-V2"
 
 
+def _check_url(url: str) -> None:
+    """Refuse non-HTTP schemes (file:// would bypass fs scoping) and
+    loopback/link-local targets (SSRF into local services / metadata),
+    unless AEON_TOOLS_WEB_ALLOW_LOCAL=1. Private LAN addresses stay
+    allowed — fetching docs from mesh machines is a supported use."""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise PermissionError(f"URL scheme not allowed: {parsed.scheme or '(none)'}")
+    if os.environ.get("AEON_TOOLS_WEB_ALLOW_LOCAL", "").strip() == "1":
+        return
+    host = (parsed.hostname or "").lower()
+    blocked = (
+        host in ("localhost", "ip6-localhost")
+        or host.startswith("127.")
+        or host in ("::1", "0.0.0.0")
+        or host.startswith("169.254.")
+        or host.startswith("fe80:")
+    )
+    if blocked:
+        raise PermissionError(f"Refusing to fetch local/link-local address: {host}")
+
+
 def _http_get(url: str, timeout: float = 20.0) -> str:
+    _check_url(url)
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
