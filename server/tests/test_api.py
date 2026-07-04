@@ -36,6 +36,14 @@ def test_requires_token(client):
     assert client.get("/api/health", headers={"Authorization": "Bearer wrong"}).status_code == 401
 
 
+def test_session_id_traversal_rejected(client):
+    resp = client.get("/api/sessions/..%2F..%2Fetc%2Fpasswd", headers=AUTH)
+    assert resp.status_code == 404
+    resp = client.post("/api/chat", headers=AUTH,
+                       json={"session_id": "../../escape", "message": "x"})
+    assert resp.status_code == 404
+
+
 def test_health(client):
     resp = client.get("/api/health", headers=AUTH)
     assert resp.status_code == 200

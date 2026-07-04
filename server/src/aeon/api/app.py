@@ -6,6 +6,7 @@ accepted (safe default for a tailnet-fronted box).
 
 Chat streams AgentEvents as newline-delimited SSE (`data: {...}\n\n`).
 """
+import hmac
 import json
 import os
 from dataclasses import asdict
@@ -27,11 +28,11 @@ def _check_auth(request: Request) -> None:
     token = os.environ.get("AEON_API_TOKEN", "").strip()
     if token:
         header = request.headers.get("authorization", "")
-        if header != f"Bearer {token}":
+        if not hmac.compare_digest(header, f"Bearer {token}"):
             raise HTTPException(status_code=401, detail="Invalid or missing token")
         return
     client_host = request.client.host if request.client else ""
-    if client_host not in ("127.0.0.1", "::1", "testclient"):
+    if client_host not in ("127.0.0.1", "::1"):
         raise HTTPException(
             status_code=401,
             detail="AEON_API_TOKEN is not set; remote connections are refused",
