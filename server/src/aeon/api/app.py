@@ -260,14 +260,19 @@ def _mount_web(app: FastAPI) -> None:
         return  # API-only mode when the web app hasn't been built
     app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
 
+    dist_root = dist.resolve()
+
     @app.get("/{full_path:path}")
     def spa(full_path: str):
         # Serve real files (favicon, manifest, sw.js, icons); everything else
         # falls back to index.html so client-side routes deep-link correctly.
-        candidate = dist / full_path
-        if full_path and candidate.is_file():
-            return FileResponse(candidate)
-        return FileResponse(dist / "index.html")
+        index = dist_root / "index.html"
+        if full_path:
+            candidate = (dist_root / full_path).resolve()
+            # Confine to dist_root: reject any ../ traversal escaping it.
+            if (candidate == dist_root or dist_root in candidate.parents) and candidate.is_file():
+                return FileResponse(candidate)
+        return FileResponse(index)
 
 
 def main() -> None:

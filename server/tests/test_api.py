@@ -178,6 +178,13 @@ def test_spa_serving_and_api_precedence(monkeypatch, tmp_path):
     assert c.get("/manifest.webmanifest").status_code == 200
     # The SPA catch-all must NOT shadow the API (auth still enforced).
     assert c.get("/api/health").status_code == 401
+    # Traversal outside dist/ falls back to index.html, never leaks a file.
+    secret = tmp_path / "secret.txt"
+    secret.write_text("TOPSECRET", encoding="utf-8")
+    resp = c.get("/../secret.txt")
+    assert "TOPSECRET" not in resp.text
+    resp2 = c.get("/%2e%2e%2fsecret.txt")
+    assert "TOPSECRET" not in resp2.text
 
 
 def test_mesh_status(client):
