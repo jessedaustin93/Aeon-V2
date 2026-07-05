@@ -8,9 +8,10 @@ AEON_V1_LLM_* names so the existing T5810 .env keeps working.
 """
 import json
 import os
+import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from aeon.core.config import Config
 
@@ -82,6 +83,22 @@ class ModelRouter:
             base_url = _env("AEON_LLM_BASE_URL", "AEON_V1_LLM_BASE_URL") or DEFAULT_BASE_URL
             self.workers = [Worker(name="local", base_url=base_url.rstrip("/"))]
 
+        # Mesh GPU workers join automatically (best-effort — probe failures
+        # are silently skipped so a down machine never blocks startup).
+        candidates = [
+            u.strip() for u in os.environ.get("AEON_MESH_LLM_WORKERS", "").split(",")
+            if u.strip()
+        ]
+        if candidates:
+            self.add_workers(discover_workers(candidates))
+
+    def add_workers(self, workers: List[Worker]) -> None:
+        existing = {w.base_url for w in self.workers}
+        for worker in workers:
+            if worker.base_url not in existing:
+                self.workers.append(worker)
+                existing.add(worker.base_url)
+
     def _client(self, worker: Worker) -> ChatClient:
         if worker.base_url not in self._clients:
             self._clients[worker.base_url] = ChatClient(worker.base_url)
@@ -110,3 +127,25 @@ class ModelRouter:
                 worker.healthy = False
             status[worker.name] = worker.healthy
         return status
+
+
+def discover_workers(
+    candidates: List[str],
+    http_probe: Optional[Callable[[str], List[str]]] = None,
+) -> List[Worker]:
+    """Probe candidate OpenAI-compatible base URLs; return a Worker for each
+    that responds. `http_probe(base_url)` returns its model list (or raises)."""
+    def _probe(base_url: str) -> List[str]:
+        return ChatClient(base_url).list_models()
+
+    probe = http_probe or _probe
+    workers: List[Worker] = []
+    for base_url in candidates:
+        base_url = base_url.rstrip("/")
+        try:
+            probe(base_url)
+        except Exception:
+            continue
+        host = urllib.parse.urlparse(base_url).hostname or base_url
+        workers.append(Worker(name=host, base_url=base_url, models=["*"], priority=5))
+    return workers

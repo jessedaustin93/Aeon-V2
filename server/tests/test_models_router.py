@@ -1,7 +1,7 @@
 import json
 
 from aeon.core.config import Config
-from aeon.models.router import ModelRouter, Worker
+from aeon.models.router import ModelRouter, Worker, discover_workers
 
 
 def _write_models_json(root, data):
@@ -72,6 +72,44 @@ def test_resolve_unknown_role_raises(monkeypatch, tmp_path):
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+def test_discover_workers_skips_unreachable():
+    def probe(base_url):
+        if "down" in base_url:
+            raise OSError("unreachable")
+        return ["model-a"]
+
+    workers = discover_workers(
+        ["http://up:1234/v1", "http://down:1234/v1"], http_probe=probe
+    )
+    assert [w.base_url for w in workers] == ["http://up:1234/v1"]
+    assert workers[0].name == "up"
+    assert workers[0].models == ["*"]
+
+
+def test_add_workers_dedupes(monkeypatch, tmp_path):
+    monkeypatch.setenv("AEON_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("AEON_LLM_BASE_URL", "http://local:1234/v1")
+    router = ModelRouter(Config())
+    router.add_workers([Worker(name="a", base_url="http://a/v1")])
+    router.add_workers([Worker(name="a-again", base_url="http://a/v1")])  # dupe
+    urls = [w.base_url for w in router.workers]
+    assert urls.count("http://a/v1") == 1
+
+
+def test_mesh_llm_workers_env_discovery(monkeypatch, tmp_path):
+    monkeypatch.setenv("AEON_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("AEON_LLM_BASE_URL", "http://local:1234/v1")
+    monkeypatch.setenv("AEON_MESH_LLM_WORKERS", "http://t3610:1234/v1,http://t5810b:1234/v1")
+    monkeypatch.setattr(
+        "aeon.models.router.ChatClient.list_models",
+        lambda self: ["m"],  # all reachable
+    )
+    router = ModelRouter(Config())
+    urls = [w.base_url for w in router.workers]
+    assert "http://t3610:1234/v1" in urls
+    assert "http://t5810b:1234/v1" in urls
 
 
 def test_health_check_updates(monkeypatch, tmp_path):
