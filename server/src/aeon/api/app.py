@@ -22,6 +22,7 @@ from aeon.agent.loop import AgentLoop
 from aeon.models.router import ModelRouter
 from aeon.skills import SkillStore
 from aeon.skills.learn import propose_from_transcript
+from aeon.research import ResearchStore, run_research
 
 from .sessions import SessionStore
 
@@ -49,12 +50,14 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
     skill_store = SkillStore(cfg)
     loop = AgentLoop(config=cfg, router=router, broker=broker, skill_store=skill_store)
     sessions = SessionStore(cfg)
+    research_store = ResearchStore(cfg)
     app.state.config = cfg
     app.state.router = router
     app.state.broker = broker
     app.state.skill_store = skill_store
     app.state.loop = loop
     app.state.sessions = sessions
+    app.state.research_store = research_store
 
     auth = Depends(_check_auth)
 
@@ -159,6 +162,29 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
         except KeyError:
             raise HTTPException(status_code=404, detail="Unknown proposal")
         return {"status": "rejected", "name": name}
+
+    @app.post("/api/research", dependencies=[auth])
+    def research(body: Dict) -> StreamingResponse:
+        question = (body.get("question") or "").strip()
+        if not question:
+            raise HTTPException(status_code=422, detail="question is required")
+
+        def stream() -> Iterator[str]:
+            for event in run_research(question, cfg, router):
+                yield f"data: {json.dumps(asdict(event))}\n\n"
+
+        return StreamingResponse(stream(), media_type="text/event-stream")
+
+    @app.get("/api/research", dependencies=[auth])
+    def list_research() -> Dict:
+        return {"runs": research_store.list()}
+
+    @app.get("/api/research/{run_id}", dependencies=[auth])
+    def get_research(run_id: str) -> Dict:
+        run = research_store.get(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Unknown research run")
+        return run
 
     @app.get("/api/approvals", dependencies=[auth])
     def approvals() -> Dict:

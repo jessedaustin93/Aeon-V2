@@ -135,6 +135,24 @@ def test_skill_propose_no_skill(client, monkeypatch):
     assert resp.json() == {"skill": None}
 
 
+def test_research_endpoints(client, monkeypatch):
+    from aeon.agent.loop import AgentEvent
+
+    def fake_run(question, cfg, router, **kwargs):
+        yield AgentEvent("text", {"text": "searching\n"})
+        yield AgentEvent("done", {"run_id": "r1", "report_path": "/x.md", "sources": []})
+
+    monkeypatch.setattr("aeon.api.app.run_research", fake_run)
+    resp = client.post("/api/research", headers=AUTH, json={"question": "what is SDR?"})
+    assert resp.status_code == 200
+    kinds = [json.loads(l[5:])["kind"] for l in resp.text.splitlines() if l.startswith("data:")]
+    assert kinds == ["text", "done"]
+
+    assert client.post("/api/research", headers=AUTH, json={"question": ""}).status_code == 422
+    assert client.get("/api/research", headers=AUTH).status_code == 200
+    assert client.get("/api/research/nope", headers=AUTH).status_code == 404
+
+
 def test_approvals_endpoints(client):
     broker = client.app.state.broker
     req = broker.create("shell_run", {"command": "ls"})
