@@ -14,6 +14,8 @@ def client(monkeypatch, tmp_path):
     monkeypatch.setenv("AEON_API_TOKEN", "test-token")
     monkeypatch.delenv("AEON_MESH_HUB", raising=False)
     monkeypatch.delenv("AEON_MESH_TOKEN", raising=False)
+    # Force API-only mode so these tests don't depend on a built web/dist.
+    monkeypatch.setenv("AEON_WEB_DIST", str(tmp_path / "no-web"))
     cfg = Config()
     cfg.memory_path.mkdir(parents=True, exist_ok=True)
     cfg.vault_path.mkdir(parents=True, exist_ok=True)
@@ -153,6 +155,29 @@ def test_research_endpoints(client, monkeypatch):
     assert client.post("/api/research", headers=AUTH, json={"question": ""}).status_code == 422
     assert client.get("/api/research", headers=AUTH).status_code == 200
     assert client.get("/api/research/nope", headers=AUTH).status_code == 404
+
+
+def test_spa_serving_and_api_precedence(monkeypatch, tmp_path):
+    monkeypatch.setenv("AEON_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("AEON_API_TOKEN", "tok")
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>Aeon</title>", encoding="utf-8")
+    (dist / "manifest.webmanifest").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("AEON_WEB_DIST", str(dist))
+    cfg = Config()
+    cfg.memory_path.mkdir(parents=True, exist_ok=True)
+    cfg.vault_path.mkdir(parents=True, exist_ok=True)
+    c = TestClient(create_app(cfg))
+
+    # Deep link falls back to index.html.
+    deep = c.get("/mesh")
+    assert deep.status_code == 200
+    assert "Aeon" in deep.text
+    # Real static file is served directly.
+    assert c.get("/manifest.webmanifest").status_code == 200
+    # The SPA catch-all must NOT shadow the API (auth still enforced).
+    assert c.get("/api/health").status_code == 401
 
 
 def test_mesh_status(client):

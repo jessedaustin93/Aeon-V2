@@ -10,10 +10,12 @@ import hmac
 import json
 import os
 from dataclasses import asdict
+from pathlib import Path
 from typing import Dict, Iterator, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 import aeon
 from aeon.core.config import Config
@@ -189,6 +191,13 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Unknown research run")
         return run
 
+    @app.get("/api/memory/search", dependencies=[auth])
+    def memory_search(q: str = "") -> Dict:
+        from aeon.tools.memory import memory_search as _search
+        if not q.strip():
+            return {"query": q, "results": []}
+        return _search({"query": q, "limit": 20}, cfg)
+
     @app.get("/api/mesh", dependencies=[auth])
     def mesh_status() -> Dict:
         return {
@@ -229,7 +238,36 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Unknown approval")
         return asdict(request)
 
+    _mount_web(app)
     return app
+
+
+def _web_dist() -> Optional[Path]:
+    """Locate the built web app. AEON_WEB_DIST overrides; otherwise look for
+    web/dist relative to the repo (…/server/src/aeon/api/app.py -> repo root)."""
+    override = os.environ.get("AEON_WEB_DIST", "").strip()
+    if override:
+        path = Path(override).expanduser()
+        return path if (path / "index.html").exists() else None
+    repo_root = Path(__file__).resolve().parents[4]
+    candidate = repo_root / "web" / "dist"
+    return candidate if (candidate / "index.html").exists() else None
+
+
+def _mount_web(app: FastAPI) -> None:
+    dist = _web_dist()
+    if dist is None:
+        return  # API-only mode when the web app hasn't been built
+    app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    def spa(full_path: str):
+        # Serve real files (favicon, manifest, sw.js, icons); everything else
+        # falls back to index.html so client-side routes deep-link correctly.
+        candidate = dist / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(dist / "index.html")
 
 
 def main() -> None:
