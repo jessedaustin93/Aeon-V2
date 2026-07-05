@@ -22,8 +22,10 @@ echo "==> Data root"
 export AEON_DATA_DIR="$DATA_DIR"
 server/.venv/bin/aeon-init-data
 if [ ! -f "$DATA_DIR/aeon.env" ]; then
-  cp deploy/aeon.env.example "$DATA_DIR/aeon.env"
-  echo "    wrote $DATA_DIR/aeon.env — EDIT IT (set AEON_API_TOKEN, paths)."
+  # aeon.env holds the API token and mesh secret — owner-only from creation.
+  ( umask 177 && cp deploy/aeon.env.example "$DATA_DIR/aeon.env" )
+  chmod 600 "$DATA_DIR/aeon.env"
+  echo "    wrote $DATA_DIR/aeon.env (600) — EDIT IT (set AEON_API_TOKEN, paths)."
 fi
 
 echo "==> Web app build"
