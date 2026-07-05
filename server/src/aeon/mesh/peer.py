@@ -4,6 +4,7 @@ Polls the hub inbox and answers addressed messages by running Aeon's own
 AgentLoop, then posts the reply back to the thread. Replaces the PTY-based
 scripts/aeon_bridge.py: no subprocess CLI, Aeon answers as itself.
 """
+import os
 import time
 from typing import Callable, Dict, Optional
 
@@ -20,10 +21,18 @@ class MeshPeer:
         mesh_client: Optional[MeshClient] = None,
         loop: Optional[AgentLoop] = None,
         poll_seconds: float = 1.0,
+        enable_tools: Optional[bool] = None,
     ):
         self.config = config or Config()
         self.mesh = mesh_client or MeshClient(MeshConfig.from_env())
-        self.loop = loop or AgentLoop(config=self.config)
+        # SECURITY: mesh messages are remote, effectively untrusted input, and
+        # the peer runs headless (no human to clear approval prompts). By
+        # default Aeon answers over the mesh with tools DISABLED — no file
+        # reads, no memory writes, no outbound posts driven by an injected
+        # instruction. Opt in explicitly with AEON_MESH_ENABLE_TOOLS=1.
+        if enable_tools is None:
+            enable_tools = os.environ.get("AEON_MESH_ENABLE_TOOLS", "").strip() == "1"
+        self.loop = loop or AgentLoop(config=self.config, enable_tools=enable_tools)
         self.poll_seconds = poll_seconds
         self._cursor = 0
 

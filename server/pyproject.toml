@@ -18,6 +18,7 @@ hardware = ["pyserial>=3.5"]
 [project.scripts]
 aeon-init-data = "aeon.cli:init_data"
 aeon-server = "aeon.api.app:main"
+aeon-mesh-peer = "aeon.mesh.peer:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -23,6 +23,7 @@ from aeon.models.router import ModelRouter
 from aeon.skills import SkillStore
 from aeon.skills.learn import propose_from_transcript
 from aeon.research import ResearchStore, run_research
+from aeon.mesh import MeshClient, MeshConfig
 
 from .sessions import SessionStore
 
@@ -51,6 +52,7 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
     loop = AgentLoop(config=cfg, router=router, broker=broker, skill_store=skill_store)
     sessions = SessionStore(cfg)
     research_store = ResearchStore(cfg)
+    mesh_client = MeshClient(MeshConfig.from_env())
     app.state.config = cfg
     app.state.router = router
     app.state.broker = broker
@@ -58,6 +60,7 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
     app.state.loop = loop
     app.state.sessions = sessions
     app.state.research_store = research_store
+    app.state.mesh_client = mesh_client
 
     auth = Depends(_check_auth)
 
@@ -185,6 +188,32 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
         if run is None:
             raise HTTPException(status_code=404, detail="Unknown research run")
         return run
+
+    @app.get("/api/mesh", dependencies=[auth])
+    def mesh_status() -> Dict:
+        return {
+            "agent_id": mesh_client.config.agent_id,
+            "machine": mesh_client.config.machine,
+            "configured": mesh_client.configured,
+            "workers": [
+                {"name": w.name, "base_url": w.base_url, "healthy": w.healthy}
+                for w in router.workers
+            ],
+        }
+
+    @app.post("/api/mesh/message", dependencies=[auth])
+    def mesh_message(body: Dict) -> Dict:
+        if not app.state.mesh_client.configured:
+            raise HTTPException(status_code=503, detail="Mesh not configured")
+        if not body.get("recipient") or not body.get("content"):
+            raise HTTPException(status_code=422, detail="recipient and content required")
+        result = app.state.mesh_client.post_message(
+            thread_id=body.get("thread_id"),
+            recipient=body["recipient"],
+            content=body["content"],
+            kind=body.get("kind", "message"),
+        )
+        return {"posted": True, "message_id": result.get("id")}
 
     @app.get("/api/approvals", dependencies=[auth])
     def approvals() -> Dict:

@@ -168,6 +168,19 @@ def test_system_prompt_injected(config):
     assert "Aeon" in first["content"]
 
 
+def test_tools_disabled_sends_no_tools(config):
+    turns = [[ChatDelta("text", text="hi"), ChatDelta("finish", finish_reason="stop")]]
+    router = ModelRouter(config)
+    router.roles["chat"] = "fake-model"
+    fake = FakeClient(turns)
+    router.resolve = lambda role: (fake, "fake-model")  # type: ignore
+    from aeon.agent.loop import AgentLoop
+    loop = AgentLoop(config=config, router=router, enable_tools=False)
+    assert loop.definitions == []
+    list(loop.run([{"role": "user", "content": "hello"}]))
+    assert fake.requests[0]["tools"] in (None, [])
+
+
 def test_active_skills_advertised_in_prompt(config):
     from aeon.skills import SkillStore
 

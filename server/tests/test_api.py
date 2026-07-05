@@ -12,6 +12,8 @@ from aeon.api.app import create_app
 def client(monkeypatch, tmp_path):
     monkeypatch.setenv("AEON_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("AEON_API_TOKEN", "test-token")
+    monkeypatch.delenv("AEON_MESH_HUB", raising=False)
+    monkeypatch.delenv("AEON_MESH_TOKEN", raising=False)
     cfg = Config()
     cfg.memory_path.mkdir(parents=True, exist_ok=True)
     cfg.vault_path.mkdir(parents=True, exist_ok=True)
@@ -151,6 +153,40 @@ def test_research_endpoints(client, monkeypatch):
     assert client.post("/api/research", headers=AUTH, json={"question": ""}).status_code == 422
     assert client.get("/api/research", headers=AUTH).status_code == 200
     assert client.get("/api/research/nope", headers=AUTH).status_code == 404
+
+
+def test_mesh_status(client):
+    resp = client.get("/api/mesh", headers=AUTH)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "agent_id" in body
+    assert "configured" in body
+    assert isinstance(body["workers"], list)
+
+
+def test_mesh_message_unconfigured_503(client):
+    # No AEON_MESH_HUB/TOKEN set in this fixture -> not configured.
+    resp = client.post("/api/mesh/message", headers=AUTH,
+                       json={"recipient": "claude@x1", "content": "hi"})
+    assert resp.status_code == 503
+
+
+def test_mesh_message_posts_when_configured(client):
+    posted = {}
+
+    class FakeMeshClient:
+        configured = True
+
+        def post_message(self, thread_id, recipient, content, kind="reply"):
+            posted.update(dict(recipient=recipient, content=content))
+            return {"id": 7}
+
+    client.app.state.mesh_client = FakeMeshClient()
+    resp = client.post("/api/mesh/message", headers=AUTH,
+                       json={"recipient": "claude@x1", "content": "status?"})
+    assert resp.status_code == 200
+    assert resp.json() == {"posted": True, "message_id": 7}
+    assert posted["recipient"] == "claude@x1"
 
 
 def test_approvals_endpoints(client):

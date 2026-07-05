@@ -56,6 +56,7 @@ class AgentLoop:
         skill_store: Optional[SkillStore] = None,
         max_iterations: int = 12,
         approval_timeout: float = 300.0,
+        enable_tools: bool = True,
     ):
         self.config = config or Config()
         self.router = router or ModelRouter(self.config)
@@ -63,7 +64,14 @@ class AgentLoop:
         self.skill_store = skill_store or SkillStore(self.config)
         self.max_iterations = max_iterations
         self.approval_timeout = approval_timeout
-        self.handlers, self.definitions = all_handlers(self.config)
+        self.enable_tools = enable_tools
+        # A tool-less loop (e.g. the headless mesh peer, where no human is
+        # present to approve gated calls and remote input is untrusted) gets
+        # no handlers or definitions at all — the model can only converse.
+        if enable_tools:
+            self.handlers, self.definitions = all_handlers(self.config)
+        else:
+            self.handlers, self.definitions = {}, []
         self._defs_by_name = {d.name: d for d in self.definitions}
         self.journal = ToolJournal(self.config)
 

@@ -33,7 +33,9 @@ DEFINITIONS = [
             "required": ["recipient", "content"],
         },
         tags=["mesh"],
-        approval_required=False,
+        # Outward-facing: posting to another machine is an exfiltration sink,
+        # so it is approval-gated even though the mesh is tailnet-only.
+        approval_required=True,
     ),
 ]
 

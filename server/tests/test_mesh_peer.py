@@ -83,3 +83,18 @@ def test_empty_inbox_no_posts(config):
     peer = MeshPeer(config=config, mesh_client=mesh, loop=StubLoop())
     assert peer.poll_once() == 0
     assert mesh.posts == []
+
+
+def test_peer_disables_tools_by_default(config, monkeypatch):
+    # No loop injected: the peer must build a tool-less AgentLoop so remote,
+    # untrusted mesh input can't drive file reads / memory writes / posts.
+    monkeypatch.delenv("AEON_MESH_ENABLE_TOOLS", raising=False)
+    peer = MeshPeer(config=config, mesh_client=FakeMesh([[]]))
+    assert peer.loop.enable_tools is False
+    assert peer.loop.definitions == []
+
+
+def test_peer_tools_opt_in_via_env(config, monkeypatch):
+    monkeypatch.setenv("AEON_MESH_ENABLE_TOOLS", "1")
+    peer = MeshPeer(config=config, mesh_client=FakeMesh([[]]))
+    assert peer.loop.enable_tools is True
