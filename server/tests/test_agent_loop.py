@@ -166,3 +166,48 @@ def test_system_prompt_injected(config):
     first = fake.requests[0]["messages"][0]
     assert first["role"] == "system"
     assert "Aeon" in first["content"]
+
+
+def test_active_skills_advertised_in_prompt(config):
+    from aeon.skills import SkillStore
+
+    store = SkillStore(config)
+    store.propose("mesh-health", "Check the agent mesh health", "1. ping hub")
+    store.approve("mesh-health")
+
+    turns = [[ChatDelta("text", text="ok"), ChatDelta("finish", finish_reason="stop")]]
+    loop, fake = make_loop(config, turns)
+    list(loop.run([{"role": "user", "content": "hi"}]))
+    system_prompt = fake.requests[0]["messages"][0]["content"]
+    assert "mesh-health" in system_prompt
+    assert "skill_use" in system_prompt
+
+
+def test_skill_use_tool_returns_body(config):
+    from aeon.skills import SkillStore
+
+    store = SkillStore(config)
+    store.propose("mesh-health", "Check mesh", "ping the hub then report")
+    store.approve("mesh-health")
+
+    turns = [
+        [ChatDelta("tool_call", tool_calls=[tool_call("skill_use", {"name": "mesh-health"})]),
+         ChatDelta("finish", finish_reason="tool_calls")],
+        [ChatDelta("text", text="following the skill"), ChatDelta("finish", finish_reason="stop")],
+    ]
+    loop, _ = make_loop(config, turns)
+    events = list(loop.run([{"role": "user", "content": "check mesh"}]))
+    result_event = next(e for e in events if e.kind == "tool_result")
+    assert result_event.data["result"]["instructions"] == "ping the hub then report"
+
+
+def test_skill_use_unknown_returns_error(config):
+    turns = [
+        [ChatDelta("tool_call", tool_calls=[tool_call("skill_use", {"name": "ghost"})]),
+         ChatDelta("finish", finish_reason="tool_calls")],
+        [ChatDelta("text", text="no such skill"), ChatDelta("finish", finish_reason="stop")],
+    ]
+    loop, _ = make_loop(config, turns)
+    events = list(loop.run([{"role": "user", "content": "use ghost"}]))
+    result_event = next(e for e in events if e.kind == "tool_result")
+    assert "unknown skill" in result_event.data["result"]["error"]

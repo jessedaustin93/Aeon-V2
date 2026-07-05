@@ -12,6 +12,7 @@ from typing import Dict, Iterator, List, Optional
 from aeon.core.config import Config
 from aeon.core.tools import ToolDefinition
 from aeon.tools import all_handlers
+from aeon.skills import SkillStore
 
 from aeon.models.router import ModelRouter
 
@@ -52,24 +53,31 @@ class AgentLoop:
         config: Optional[Config] = None,
         router: Optional[ModelRouter] = None,
         broker: Optional[ApprovalBroker] = None,
+        skill_store: Optional[SkillStore] = None,
         max_iterations: int = 12,
         approval_timeout: float = 300.0,
     ):
         self.config = config or Config()
         self.router = router or ModelRouter(self.config)
         self.broker = broker or ApprovalBroker(self.config)
+        self.skill_store = skill_store or SkillStore(self.config)
         self.max_iterations = max_iterations
         self.approval_timeout = approval_timeout
         self.handlers, self.definitions = all_handlers(self.config)
         self._defs_by_name = {d.name: d for d in self.definitions}
         self.journal = ToolJournal(self.config)
 
+    def _system_prompt(self) -> str:
+        # Active skills are advertised each run, so newly approved skills
+        # take effect on the next message without a restart.
+        return SYSTEM_PROMPT + self.skill_store.prompt_block()
+
     # ------------------------------------------------------------------ run
 
     def run(self, messages: List[Dict], role: str = "chat") -> Iterator[AgentEvent]:
         convo = list(messages)
         if not convo or convo[0].get("role") != "system":
-            convo.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
+            convo.insert(0, {"role": "system", "content": self._system_prompt()})
         tools = _openai_tools(self.definitions)
 
         try:

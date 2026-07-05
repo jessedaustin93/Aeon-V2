@@ -8,9 +8,9 @@ from typing import Callable, Dict, List, Tuple
 from aeon.core.config import Config
 from aeon.core.tools import ToolDefinition
 
-from . import fs, memory, shell, vault, web
+from . import fs, memory, shell, skills, vault, web
 
-_MODULES = [fs, shell, web, memory, vault]
+_MODULES = [fs, shell, web, memory, vault, skills]
 
 
 def all_handlers(config: Config) -> Tuple[Dict[str, Callable], List[ToolDefinition]]:
