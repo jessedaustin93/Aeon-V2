@@ -112,10 +112,26 @@ def test_web_fetch_local_override(config, monkeypatch):
 
 
 def test_web_search_parses_results(config, monkeypatch):
-    monkeypatch.setattr(web_mod, "_http_get", lambda url, timeout=20.0: FIXTURE_SEARCH)
+    monkeypatch.setattr(web_mod, "_http_get",
+                        lambda url, timeout=20.0, data=None: FIXTURE_SEARCH)
     result = web_mod.web_search({"query": "sdr"}, config)
     assert result["results"][0]["title"] == "SDR Guide"
     assert result["results"][0]["url"] == "https://example.com/sdr"
+
+
+def test_web_search_uses_post_body(config, monkeypatch):
+    seen = {}
+
+    def spy(url, timeout=20.0, data=None):
+        seen["url"] = url
+        seen["data"] = data
+        return FIXTURE_SEARCH
+
+    monkeypatch.setattr(web_mod, "_http_get", spy)
+    web_mod.web_search({"query": "sdr radios"}, config)
+    assert seen["url"] == "https://html.duckduckgo.com/html/"
+    assert seen["data"] is not None
+    assert b"sdr" in seen["data"]
 
 
 # -------------------------------------------------------------------- memory

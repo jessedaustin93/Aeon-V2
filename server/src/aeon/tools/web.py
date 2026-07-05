@@ -36,9 +36,12 @@ def _check_url(url: str) -> None:
         raise PermissionError(f"Refusing to fetch local/link-local address: {host}")
 
 
-def _http_get(url: str, timeout: float = 20.0) -> str:
+def _http_get(url: str, timeout: float = 20.0, data: bytes = None) -> str:
     _check_url(url)
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    headers = {"User-Agent": USER_AGENT}
+    if data is not None:
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+    req = urllib.request.Request(url, data=data, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
@@ -106,8 +109,10 @@ def _decode_ddg_url(url: str) -> str:
 def web_search(arguments: Dict, config: Config) -> Dict:
     query = arguments["query"]
     limit = int(arguments.get("limit", 5))
-    url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query)
-    raw = _http_get(url)
+    # DuckDuckGo's HTML endpoint serves a JS landing page to GET requests;
+    # a POST with the query as form data returns the parseable results page.
+    body = urllib.parse.urlencode({"q": query}).encode("utf-8")
+    raw = _http_get("https://html.duckduckgo.com/html/", data=body)
     results = []
     for match in _RESULT_RE.finditer(raw):
         results.append(
