@@ -20,6 +20,8 @@ from aeon.core.config import Config
 from aeon.agent.approvals import ApprovalBroker
 from aeon.agent.loop import AgentLoop
 from aeon.models.router import ModelRouter
+from aeon.skills import SkillStore
+from aeon.skills.learn import propose_from_transcript
 
 from .sessions import SessionStore
 
@@ -44,11 +46,13 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
     cfg = config or Config()
     router = ModelRouter(cfg)
     broker = ApprovalBroker(cfg)
-    loop = AgentLoop(config=cfg, router=router, broker=broker)
+    skill_store = SkillStore(cfg)
+    loop = AgentLoop(config=cfg, router=router, broker=broker, skill_store=skill_store)
     sessions = SessionStore(cfg)
     app.state.config = cfg
     app.state.router = router
     app.state.broker = broker
+    app.state.skill_store = skill_store
     app.state.loop = loop
     app.state.sessions = sessions
 
@@ -122,6 +126,39 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
                 sessions.append(session_id, {"role": "assistant", "content": reply})
 
         return StreamingResponse(stream(), media_type="text/event-stream")
+
+    @app.get("/api/skills", dependencies=[auth])
+    def list_skills() -> Dict:
+        return {
+            "active": [asdict(s) for s in skill_store.list_active()],
+            "proposals": [asdict(s) for s in skill_store.list_proposals()],
+        }
+
+    @app.post("/api/skills/propose", dependencies=[auth])
+    def propose_skill(body: Dict) -> Dict:
+        session = sessions.get(body.get("session_id", ""))
+        if session is None:
+            raise HTTPException(status_code=404, detail="Unknown session")
+        skill = propose_from_transcript(session["messages"], cfg, router)
+        return {"skill": asdict(skill) if skill else None}
+
+    @app.post("/api/skills/{name}/approve", dependencies=[auth])
+    def approve_skill(name: str) -> Dict:
+        try:
+            skill = skill_store.approve(name)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Unknown proposal")
+        except FileExistsError:
+            raise HTTPException(status_code=409, detail="Active skill already exists")
+        return asdict(skill)
+
+    @app.post("/api/skills/{name}/reject", dependencies=[auth])
+    def reject_skill(name: str) -> Dict:
+        try:
+            skill_store.reject(name)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Unknown proposal")
+        return {"status": "rejected", "name": name}
 
     @app.get("/api/approvals", dependencies=[auth])
     def approvals() -> Dict:

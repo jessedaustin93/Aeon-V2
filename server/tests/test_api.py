@@ -101,6 +101,40 @@ def test_chat_validation(client):
                        json={"session_id": "nope", "message": "x"}).status_code == 404
 
 
+def test_skills_lifecycle(client):
+    store = client.app.state.skill_store
+    store.propose("mesh-health", "Check mesh", "steps")
+    listing = client.get("/api/skills", headers=AUTH).json()
+    assert listing["active"] == []
+    assert [s["name"] for s in listing["proposals"]] == ["mesh-health"]
+
+    approved = client.post("/api/skills/mesh-health/approve", headers=AUTH).json()
+    assert approved["name"] == "mesh-health"
+    listing = client.get("/api/skills", headers=AUTH).json()
+    assert [s["name"] for s in listing["active"]] == ["mesh-health"]
+
+    assert client.post("/api/skills/ghost/approve", headers=AUTH).status_code == 404
+
+
+def test_skill_reject(client):
+    store = client.app.state.skill_store
+    store.propose("junk", "d", "b")
+    resp = client.post("/api/skills/junk/reject", headers=AUTH)
+    assert resp.status_code == 200
+    assert client.get("/api/skills", headers=AUTH).json()["proposals"] == []
+
+
+def test_skill_propose_no_skill(client, monkeypatch):
+    session = client.post("/api/sessions", headers=AUTH, json={}).json()
+    client.app.state.sessions.append(session["id"], {"role": "user", "content": "hi"})
+    monkeypatch.setattr("aeon.api.app.propose_from_transcript",
+                        lambda messages, cfg, router: None)
+    resp = client.post("/api/skills/propose", headers=AUTH,
+                       json={"session_id": session["id"]})
+    assert resp.status_code == 200
+    assert resp.json() == {"skill": None}
+
+
 def test_approvals_endpoints(client):
     broker = client.app.state.broker
     req = broker.create("shell_run", {"command": "ls"})
