@@ -1,0 +1,17 @@
+# Aeon-V2 API + web server (systemd user service on the T5810).
+# Install: cp to ~/.config/systemd/user/ then `systemctl --user enable --now aeon-server`.
+[Unit]
+Description=Aeon-V2 server (API + web)
+After=network-online.target lmstudio-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# EnvironmentFile holds AEON_API_TOKEN, model config, mesh config, data dir.
+EnvironmentFile=%h/aeon-data/aeon.env
+ExecStart=%h/Aeon-V2/server/.venv/bin/aeon-server
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,17 @@
+# Aeon-V2 Agent Mesh peer (systemd user service on the T5810).
+# Replaces the old scripts/aeon_bridge.py PTY bridge — Aeon answers the mesh
+# as itself. Tools are DISABLED over the mesh unless AEON_MESH_ENABLE_TOOLS=1.
+[Unit]
+Description=Aeon-V2 Agent Mesh peer
+After=network-online.target aeon-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/aeon-data/aeon.env
+ExecStart=%h/Aeon-V2/server/.venv/bin/aeon-mesh-peer
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

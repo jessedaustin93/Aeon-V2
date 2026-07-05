@@ -13,17 +13,32 @@ research, skills, and persistent memory — served from your own hardware.
 
 ## Status
 
-Phase 1 — core engine ported from [aeon-v1](https://github.com/jessedaustin93/aeon-v1)
-with the full test suite. See `docs/superpowers/specs/` for the design and
-`docs/superpowers/plans/` for the build plans.
+Feature-complete v2.0-alpha: streaming chat with tool calling, human-gated
+approvals, skills + learning loop, deep research, Agent Mesh peer + multi-machine
+LLM routing, and the "Signals Console" web UI (PWA). 820+ server tests.
 
-## Quick start (server)
+- Design & plans: `docs/superpowers/specs/` and `docs/superpowers/plans/`
+- Architecture: [`docs/architecture.md`](docs/architecture.md)
+- Deploy: [`docs/deployment.md`](docs/deployment.md)
+- API: [`docs/api.md`](docs/api.md)
+- Memory model: [`docs/memory-model.md`](docs/memory-model.md)
+
+## Quick start
+
+Full T5810 setup: [`docs/deployment.md`](docs/deployment.md), or `./deploy/install.sh`.
+
+Server only:
 
     cd server
     python3 -m venv .venv && .venv/bin/pip install -e .[dev]
     export AEON_DATA_DIR=~/aeon-data
     .venv/bin/aeon-init-data
     .venv/bin/pytest -q
+    .venv/bin/aeon-server        # API + web on :8900
+
+Web dev server (proxies /api to :8900):
+
+    cd web && npm install && npm run dev
 
 ## Lineage
 
