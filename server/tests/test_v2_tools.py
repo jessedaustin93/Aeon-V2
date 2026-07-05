@@ -4,6 +4,7 @@ from aeon.core.config import Config
 from aeon.tools import all_handlers
 from aeon.tools import fs as fs_mod
 from aeon.tools import memory as memory_mod
+from aeon.tools import mesh as mesh_mod
 from aeon.tools import vault as vault_mod
 from aeon.tools import web as web_mod
 
@@ -146,6 +147,38 @@ def test_memory_save_and_search_roundtrip(config):
 
 
 # --------------------------------------------------------------------- vault
+
+# ---------------------------------------------------------------------- mesh
+
+def test_mesh_post_unconfigured(config, monkeypatch):
+    monkeypatch.delenv("AEON_MESH_HUB", raising=False)
+    monkeypatch.delenv("AEON_MESH_TOKEN", raising=False)
+    result = mesh_mod.mesh_post({"recipient": "claude@x1", "content": "hi"}, config)
+    assert "error" in result
+
+
+def test_mesh_post_configured(config, monkeypatch):
+    monkeypatch.setenv("AEON_MESH_HUB", "http://hub:8787")
+    monkeypatch.setenv("AEON_MESH_TOKEN", "tok")
+    posted = {}
+
+    class FakeClient:
+        configured = True
+
+        def __init__(self, cfg):
+            pass
+
+        def post_message(self, thread_id, recipient, content, kind="reply"):
+            posted.update(dict(thread_id=thread_id, recipient=recipient, content=content))
+            return {"id": 99}
+
+    monkeypatch.setattr(mesh_mod, "MeshClient", FakeClient)
+    result = mesh_mod.mesh_post(
+        {"recipient": "claude@x1", "content": "status?", "thread_id": "t1"}, config
+    )
+    assert result == {"posted": True, "message_id": 99}
+    assert posted["recipient"] == "claude@x1"
+
 
 def test_vault_unconfigured_returns_error(config):
     config.master_vault_path = None
