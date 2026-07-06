@@ -114,3 +114,42 @@ def critique_skill(draft: Dict, report: str, client, model) -> Dict:
         "scores": data.get("scores", {}),
         "issues": list(data.get("issues", [])),
     }
+
+
+def _run_once(loop, task: str, preamble: str = "") -> str:
+    messages = []
+    if preamble:
+        messages.append({"role": "system", "content": preamble})
+    messages.append({"role": "user", "content": task})
+    reply = ""
+    for event in loop.run(messages):
+        if event.kind == "text":
+            reply += event.data.get("text", "")
+        elif event.kind == "done" and not reply:
+            reply = event.data.get("text", "")
+    return reply.strip()
+
+
+def ab_test(draft: Dict, config: Config, router: ModelRouter, loop_factory=None) -> Dict:
+    """Run the skill on a representative task with vs without it, and judge."""
+    client, model = router.resolve("deep")
+    task = _complete(
+        client, model,
+        _TASK_PROMPT.format(name=draft["name"], description=draft["description"]),
+    ).strip()
+    if not task:
+        task = draft["description"]
+    if loop_factory is None:
+        loop_factory = lambda cfg, enable_tools=False: AgentLoop(config=cfg, enable_tools=enable_tools)
+    with_skill = _run_once(
+        loop_factory(config, enable_tools=False), task,
+        preamble=f"Use this skill:\n{draft['body']}",
+    )
+    without = _run_once(loop_factory(config, enable_tools=False), task)
+    verdict = _parse_json(
+        _complete(client, model, _JUDGE_PROMPT.format(
+            task=task, with_skill=with_skill, without_skill=without))
+    )
+    with_better = bool(verdict.get("with_better")) if verdict else False
+    reason = verdict.get("reason", "") if verdict else "judge output unparseable"
+    return {"with_better": with_better, "reason": reason, "task": task}
