@@ -17,6 +17,8 @@ hardware = ["pyserial>=3.5"]
 
 [project.scripts]
 aeon-init-data = "aeon.cli:init_data"
+aeon-lint-skills = "aeon.cli:lint_skills"
+aeon-add-skill = "aeon.cli:add_skill"
 aeon-server = "aeon.api.app:main"
 aeon-mesh-peer = "aeon.mesh.peer:main"
 
