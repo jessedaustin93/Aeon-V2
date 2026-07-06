@@ -153,3 +153,75 @@ def ab_test(draft: Dict, config: Config, router: ModelRouter, loop_factory=None)
     with_better = bool(verdict.get("with_better")) if verdict else False
     reason = verdict.get("reason", "") if verdict else "judge output unparseable"
     return {"with_better": with_better, "reason": reason, "task": task}
+
+
+def forge_skill(topic, config=None, router=None, max_attempts=3,
+                research=None, loop_factory=None):
+    """Research a topic and forge a validated skill from it.
+
+    Streams AgentEvents. Ends in `done` (with the proposal + evidence) only if
+    the draft clears the critique gate AND beats the baseline in the A/B test;
+    otherwise ends in `error` with the reason — never a hollow proposal.
+    """
+    from aeon.research import run_research, ResearchStore
+
+    config = config or Config()
+    router = router or ModelRouter(config)
+    research = research or run_research
+
+    yield AgentEvent("text", {"text": f"Researching: {topic}\n"})
+    run_id = None
+    sources = []
+    for event in research(topic, config, router):
+        if event.kind == "text":
+            yield event
+        elif event.kind == "done":
+            run_id = event.data.get("run_id")
+            sources = event.data.get("sources", [])
+        elif event.kind == "error":
+            yield AgentEvent("error", {"error": f"research failed: {event.data.get('error')}"})
+            return
+
+    stored = ResearchStore(config).get(run_id) if run_id else None
+    report = (stored or {}).get("report", "")
+    if not report:
+        yield AgentEvent("error", {"error": "research produced no report"})
+        return
+
+    client, model = router.resolve("deep")
+    draft = None
+    critique = {"issues": []}
+    for attempt in range(1, max_attempts + 1):
+        yield AgentEvent("text", {"text": f"Drafting skill (attempt {attempt})\n"})
+        feedback = "\n".join(critique.get("issues", [])) if attempt > 1 else ""
+        draft = draft_skill(topic, report, client, model, feedback=feedback)
+        if not draft:
+            continue
+        yield AgentEvent("text", {"text": "Critiquing draft\n"})
+        critique = critique_skill(draft, report, client, model)
+        if critique["passed"]:
+            break
+    if not draft or not critique.get("passed"):
+        yield AgentEvent("error", {"error": "skill failed critique",
+                                   "issues": critique.get("issues", [])})
+        return
+
+    yield AgentEvent("text", {"text": "Running live A/B test\n"})
+    ab = ab_test(draft, config, router, loop_factory=loop_factory)
+    if not ab["with_better"]:
+        yield AgentEvent("error", {"error": "skill did not beat baseline", "ab": ab})
+        return
+
+    evidence = {
+        "topic": topic,
+        "sources": sources,
+        "scores": critique.get("scores", {}),
+        "ab": ab,
+        "report_excerpt": report[:800],
+    }
+    skill = SkillStore(config).propose(
+        draft["name"], draft["description"], draft["body"], evidence=evidence)
+    yield AgentEvent("done", {
+        "skill": {"name": skill.name, "description": skill.description, "body": skill.body},
+        "evidence": evidence,
+    })

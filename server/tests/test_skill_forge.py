@@ -118,3 +118,84 @@ def test_ab_test_unparseable_judge_is_false(config):
     result = forge.ab_test({"name": "x", "description": "d", "body": "s"},
                            config, _router(config, client), loop_factory=factory)
     assert result["with_better"] is False
+
+
+# --------------------------------------------------------------- orchestration
+
+from aeon.skills.store import SkillStore
+from aeon.research import ResearchStore, ResearchRun
+
+
+def _fake_research(report_text, sources):
+    def research(topic, config, router):
+        run = ResearchRun(id="r1", question=topic, status="complete",
+                          created_at="now", sources=sources)
+        ResearchStore(config).save(run, report_text)
+        yield AgentEvent("text", {"text": "researching\n"})
+        yield AgentEvent("done", {"run_id": "r1", "report_path": "x", "sources": sources})
+    return research
+
+
+def test_forge_success_lands_proposal(config):
+    client = ReplyClient(
+        '{"name":"v4-triage","description":"triage RTL-SDR V4 issues","body":"1. check driver"}',
+        '{"passed": true, "scores":{"specific":5,"grounded":5,"actionable":5}, "issues":[]}',
+        "How do I fix V4 drivers?",
+        '{"with_better": true, "reason": "grounded in sources"}',
+    )
+    router = _router(config, client)
+    loops = [StubLoop("good"), StubLoop("meh")]
+    events = list(forge.forge_skill(
+        "RTL-SDR V4", config, router,
+        research=_fake_research("REPORT about V4 drivers", [{"url": "http://a", "title": "A"}]),
+        loop_factory=lambda cfg, enable_tools=False: loops.pop(0),
+    ))
+    done = events[-1]
+    assert done.kind == "done"
+    assert done.data["skill"]["name"] == "v4-triage"
+    assert done.data["evidence"]["ab"]["with_better"] is True
+    assert SkillStore(config).list_proposals()[0].name == "v4-triage"
+
+
+def test_forge_rejected_on_critique(config):
+    client = ReplyClient(
+        '{"name":"junk","description":"d","body":"vague"}',
+        '{"passed": false, "scores":{"specific":1}, "issues":["too vague"]}',
+        '{"name":"junk","description":"d","body":"still vague"}',
+        '{"passed": false, "scores":{"specific":1}, "issues":["still vague"]}',
+        '{"name":"junk","description":"d","body":"vague again"}',
+        '{"passed": false, "scores":{"specific":1}, "issues":["nope"]}',
+    )
+    events = list(forge.forge_skill(
+        "topic", config, _router(config, client), max_attempts=3,
+        research=_fake_research("REPORT", [{"url": "http://a", "title": "A"}]),
+    ))
+    assert events[-1].kind == "error"
+    assert "critique" in events[-1].data["error"]
+    assert SkillStore(config).list_proposals() == []
+
+
+def test_forge_rejected_when_ab_not_better(config):
+    client = ReplyClient(
+        '{"name":"okskill","description":"d","body":"1. do the thing"}',
+        '{"passed": true, "scores":{"specific":4,"grounded":4,"actionable":4}, "issues":[]}',
+        "test task?",
+        '{"with_better": false, "reason": "no improvement"}',
+    )
+    loops = [StubLoop("a"), StubLoop("b")]
+    events = list(forge.forge_skill(
+        "topic", config, _router(config, client),
+        research=_fake_research("REPORT", [{"url": "http://a", "title": "A"}]),
+        loop_factory=lambda cfg, enable_tools=False: loops.pop(0),
+    ))
+    assert events[-1].kind == "error"
+    assert "baseline" in events[-1].data["error"]
+    assert SkillStore(config).list_proposals() == []
+
+
+def test_forge_error_when_no_report(config):
+    def empty_research(topic, config, router):
+        yield AgentEvent("error", {"error": "no sources"})
+    events = list(forge.forge_skill("topic", config, _router(config, ReplyClient()),
+                                    research=empty_research))
+    assert events[-1].kind == "error"

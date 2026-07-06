@@ -129,6 +129,8 @@ class SkillStore:
 
     def evidence(self, name: str) -> Optional[dict]:
         """Validation evidence for a forged skill (from proposal or active dir)."""
+        if not _NAME_RE.match(name):  # never build a path from an unvalidated name
+            return None
         for root in (self.proposals_root / name, self.root / name):
             path = root / "evidence.json"
             if path.is_file():
