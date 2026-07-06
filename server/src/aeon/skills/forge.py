@@ -33,10 +33,15 @@ BODY:
 2. second concrete step
 (more steps as needed)"""
 
-_CRITIQUE_PROMPT = """You are a strict reviewer. Judge whether this SKILL is worth \
+# A skill passes the critique if every rubric score meets this bar. 3 = "decent";
+# the A/B functional test is the real proof that it helps. Demanding 4+ here made
+# a strict local critic reject everything.
+CRITIQUE_MIN_SCORE = 3
+
+_CRITIQUE_PROMPT = """You are a reviewer. Judge whether this SKILL is worth \
 keeping. Score 1-5 each: specific (concrete, not vague), grounded (supported by \
-the report), actionable (the assistant can follow it). It PASSES only if every \
-score is >= 4.
+the report), actionable (the assistant can follow it). A score of 3 means \
+decent; reserve 1-2 for genuinely vague, ungrounded, or unusable content.
 
 Research report:
 {report}
@@ -122,11 +127,21 @@ def critique_skill(draft: Dict, report: str, client, model) -> Dict:
             ),
         )
     )
-    if not data or "passed" not in data:
+    if not data:
         return {"passed": False, "scores": {}, "issues": ["unparseable critique"]}
+    scores = data.get("scores", {}) or {}
+    # Compute the verdict from the scores against a fixed bar rather than
+    # trusting the model's self-reported "passed" — more honest and stable.
+    numeric = []
+    for v in scores.values():
+        try:
+            numeric.append(int(v))
+        except (TypeError, ValueError):
+            numeric.append(0)
+    passed = bool(numeric) and all(n >= CRITIQUE_MIN_SCORE for n in numeric)
     return {
-        "passed": bool(data["passed"]),
-        "scores": data.get("scores", {}),
+        "passed": passed,
+        "scores": scores,
         "issues": list(data.get("issues", [])),
     }
 

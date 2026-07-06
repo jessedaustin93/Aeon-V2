@@ -69,6 +69,20 @@ def test_critique_unparseable_fails_closed():
     assert r["passed"] is False
 
 
+def test_critique_verdict_computed_from_scores_not_self_report():
+    # Model claims passed:true but a score is below the bar -> we say fail.
+    c = ReplyClient('{"passed": true, "scores": {"specific":4,"grounded":2,"actionable":4}, "issues": []}')
+    r = forge.critique_skill({"name": "x", "description": "d", "body": "b"}, "R", c, "m")
+    assert r["passed"] is False
+
+
+def test_critique_passes_at_bar():
+    # All scores at the minimum bar (3) -> decent enough to reach the A/B test.
+    c = ReplyClient('{"passed": false, "scores": {"specific":3,"grounded":3,"actionable":3}, "issues": []}')
+    r = forge.critique_skill({"name": "x", "description": "d", "body": "b"}, "R", c, "m")
+    assert r["passed"] is True
+
+
 # ------------------------------------------------------------------- A/B test
 
 from aeon.agent.loop import AgentEvent
