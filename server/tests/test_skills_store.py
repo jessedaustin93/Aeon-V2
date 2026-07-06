@@ -63,6 +63,24 @@ def test_malformed_skill_md_skipped(store, tmp_path):
     assert store.list_active() == []
 
 
+def test_propose_with_evidence_sidecar(store):
+    store.propose("t", "d", "body", evidence={"sources": ["http://a"], "ab": {"with_better": True}})
+    ev = store.evidence("t")
+    assert ev["sources"] == ["http://a"]
+    assert ev["ab"]["with_better"] is True
+
+
+def test_evidence_none_when_absent(store):
+    store.propose("plain", "d", "b")
+    assert store.evidence("plain") is None
+
+
+def test_evidence_survives_approve(store):
+    store.propose("t", "d", "b", evidence={"ok": 1})
+    store.approve("t")
+    assert store.evidence("t") == {"ok": 1}
+
+
 def test_prompt_block(store):
     assert store.prompt_block() == ""
     store.propose("mesh-health", "Check mesh health", "steps")

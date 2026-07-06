@@ -7,6 +7,7 @@ Layout (agentskills.io):
 SKILL.md = YAML frontmatter (flat key: value pairs) + markdown body.
 Proposals never load into the agent until approved.
 """
+import json
 import re
 import shutil
 from dataclasses import dataclass
@@ -111,15 +112,31 @@ class SkillStore:
                 f"Invalid skill name {name!r} (lowercase letters, digits, hyphens)"
             )
 
-    def propose(self, name: str, description: str, body: str) -> Skill:
+    def propose(self, name: str, description: str, body: str,
+                evidence: Optional[dict] = None) -> Skill:
         self._check_name(name)
         skill = Skill(name=name, description=description, body=body)
         target = self.proposals_root / name
         target.mkdir(parents=True, exist_ok=True)
         md = target / "SKILL.md"
         md.write_text(_serialize_skill(skill), encoding="utf-8")
+        if evidence is not None:
+            (target / "evidence.json").write_text(
+                json.dumps(evidence, indent=2), encoding="utf-8"
+            )
         skill.path = str(md)
         return skill
+
+    def evidence(self, name: str) -> Optional[dict]:
+        """Validation evidence for a forged skill (from proposal or active dir)."""
+        for root in (self.proposals_root / name, self.root / name):
+            path = root / "evidence.json"
+            if path.is_file():
+                try:
+                    return json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    return None
+        return None
 
     def approve(self, name: str, overwrite: bool = False) -> Skill:
         self._check_name(name)
