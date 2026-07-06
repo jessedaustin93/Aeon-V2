@@ -116,6 +116,7 @@ def run_research(
     router: Optional[ModelRouter] = None,
     max_sources: int = 6,
     max_queries: int = 4,
+    role: str = "deep",
 ) -> Iterator[AgentEvent]:
     config = config or Config()
     router = router or ModelRouter(config)
@@ -128,7 +129,7 @@ def run_research(
     )
 
     try:
-        client, model = router.resolve("deep")
+        client, model = router.resolve(role)
     except ValueError as exc:
         yield AgentEvent("error", {"error": str(exc)})
         return

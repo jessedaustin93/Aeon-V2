@@ -184,7 +184,11 @@ def forge_skill(topic, config=None, router=None, max_attempts=3,
 
     config = config or Config()
     router = router or ModelRouter(config)
-    research = research or run_research
+    # Bound the research pass: report synthesis on a local model gets slow with
+    # many sources, and the skill only needs enough grounding to be correct.
+    if research is None:
+        research = lambda t, c, r: run_research(
+            t, c, r, max_sources=3, max_queries=2, role="chat")
 
     yield AgentEvent("text", {"text": f"Researching: {topic}\n"})
     run_id = None

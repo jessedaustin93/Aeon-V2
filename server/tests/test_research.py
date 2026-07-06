@@ -57,6 +57,17 @@ def test_full_research_run(config, monkeypatch):
     assert "## Sources" in report["report"]
 
 
+def test_research_honors_role(config, monkeypatch):
+    client = ScriptedClient('["q"]', "report\n## Sources\n1. http://a.com")
+    seen = {}
+    router = _router(config, client)
+    orig = router.resolve
+    router.resolve = lambda role: (seen.__setitem__("role", role), orig(role))[1]
+    _stub_web(monkeypatch, [("http://a.com", "A")])
+    list(run_research("q?", config, router, role="chat"))
+    assert seen["role"] == "chat"
+
+
 def test_report_without_sources_section_gets_one(config, monkeypatch):
     client = ScriptedClient('["q"]', "Just a bare answer with no sources heading.")
     _stub_web(monkeypatch, [("http://a.com", "A")])
