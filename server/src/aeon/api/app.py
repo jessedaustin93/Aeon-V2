@@ -24,6 +24,7 @@ from aeon.agent.loop import AgentLoop
 from aeon.models.router import ModelRouter
 from aeon.skills import SkillStore
 from aeon.skills.learn import propose_from_transcript
+from aeon.skills.forge import forge_skill
 from aeon.research import ResearchStore, run_research
 from aeon.mesh import MeshClient, MeshConfig
 
@@ -139,7 +140,10 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
     def list_skills() -> Dict:
         return {
             "active": [asdict(s) for s in skill_store.list_active()],
-            "proposals": [asdict(s) for s in skill_store.list_proposals()],
+            "proposals": [
+                {**asdict(s), "evidence": skill_store.evidence(s.name)}
+                for s in skill_store.list_proposals()
+            ],
         }
 
     @app.post("/api/skills/propose", dependencies=[auth])
@@ -149,6 +153,18 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Unknown session")
         skill = propose_from_transcript(session["messages"], cfg, router)
         return {"skill": asdict(skill) if skill else None}
+
+    @app.post("/api/skills/forge", dependencies=[auth])
+    def forge(body: Dict) -> StreamingResponse:
+        topic = (body.get("topic") or "").strip()
+        if not topic:
+            raise HTTPException(status_code=422, detail="topic is required")
+
+        def stream() -> Iterator[str]:
+            for event in forge_skill(topic, cfg, router):
+                yield f"data: {json.dumps(asdict(event))}\n\n"
+
+        return StreamingResponse(stream(), media_type="text/event-stream")
 
     @app.post("/api/skills/{name}/approve", dependencies=[auth])
     def approve_skill(name: str) -> Dict:

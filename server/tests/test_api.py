@@ -120,6 +120,33 @@ def test_skills_lifecycle(client):
     assert client.post("/api/skills/ghost/approve", headers=AUTH).status_code == 404
 
 
+def test_skills_listing_includes_evidence(client):
+    store = client.app.state.skill_store
+    store.propose("forged", "d", "b", evidence={"ab": {"with_better": True}})
+    proposals = client.get("/api/skills", headers=AUTH).json()["proposals"]
+    forged = [p for p in proposals if p["name"] == "forged"][0]
+    assert forged["evidence"]["ab"]["with_better"] is True
+
+
+def test_forge_endpoint_streams(client, monkeypatch):
+    from aeon.agent.loop import AgentEvent
+
+    def fake_forge(topic, config, router, **kwargs):
+        yield AgentEvent("text", {"text": "researching\n"})
+        yield AgentEvent("done", {"skill": {"name": "x", "description": "d", "body": "b"},
+                                  "evidence": {"ab": {"with_better": True}}})
+
+    monkeypatch.setattr("aeon.api.app.forge_skill", fake_forge)
+    resp = client.post("/api/skills/forge", headers=AUTH, json={"topic": "SDR"})
+    assert resp.status_code == 200
+    kinds = [json.loads(l[5:])["kind"] for l in resp.text.splitlines() if l.startswith("data:")]
+    assert kinds == ["text", "done"]
+
+
+def test_forge_requires_topic(client):
+    assert client.post("/api/skills/forge", headers=AUTH, json={"topic": ""}).status_code == 422
+
+
 def test_skill_reject(client):
     store = client.app.state.skill_store
     store.propose("junk", "d", "b")
