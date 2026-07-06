@@ -29,8 +29,8 @@ def test_all_handlers_names_match_definitions(config):
 def test_outward_facing_tools_require_approval(config):
     _, definitions = all_handlers(config)
     gated = {d.name for d in definitions if d.approval_required}
-    # shell execution and outbound mesh posts are the gated (risky) tools.
-    assert gated == {"shell_run", "mesh_post"}
+    # Shell execution, outbound mesh posts, and service mutation are gated.
+    assert gated == {"shell_run", "mesh_post", "service_control"}
 
 
 # ------------------------------------------------------------------------ fs
