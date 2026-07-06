@@ -37,11 +37,12 @@ TRANSCRIPT = [
 ]
 
 
-def test_proposes_skill_from_json(config):
-    reply = '{"name": "mesh-health", "description": "Check mesh", "body": "1. ping hub"}'
+def test_proposes_skill_from_delimited(config):
+    reply = "NAME: mesh-health\nDESCRIPTION: Check mesh\nBODY:\n1. ping hub\n2. read peer status"
     skill = propose_from_transcript(TRANSCRIPT, config, _router(config, reply))
     assert skill is not None
     assert skill.name == "mesh-health"
+    assert "read peer status" in skill.body
     assert SkillStore(config).list_proposals()[0].name == "mesh-health"
 
 
@@ -51,17 +52,17 @@ def test_no_skill_sentinel_returns_none(config):
     assert SkillStore(config).list_proposals() == []
 
 
-def test_json_embedded_in_prose(config):
-    reply = 'Sure! Here is a skill:\n{"name": "x", "description": "d", "body": "b"}\nHope that helps.'
+def test_skill_embedded_in_prose(config):
+    reply = "Sure! Here is a skill:\nNAME: x-skill\nDESCRIPTION: d\nBODY:\n1. b\nHope that helps."
     skill = propose_from_transcript(TRANSCRIPT, config, _router(config, reply))
-    assert skill is not None and skill.name == "x"
+    assert skill is not None and skill.name == "x-skill"
 
 
 def test_invalid_name_declined(config):
-    reply = '{"name": "Bad Name!", "description": "d", "body": "b"}'
+    reply = "NAME: Bad Name!\nDESCRIPTION: d\nBODY:\n1. b"
     assert propose_from_transcript(TRANSCRIPT, config, _router(config, reply)) is None
 
 
 def test_missing_fields_declined(config):
-    reply = '{"name": "x", "description": ""}'
+    reply = "NAME: x\nDESCRIPTION:"
     assert propose_from_transcript(TRANSCRIPT, config, _router(config, reply)) is None

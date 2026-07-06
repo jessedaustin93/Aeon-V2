@@ -3,8 +3,6 @@
 The model returns a small JSON object, or the sentinel NO_SKILL when the
 session isn't worth generalizing. Proposals are always human-gated.
 """
-import json
-import re
 from typing import Dict, List, Optional
 
 from aeon.core.config import Config
@@ -12,20 +10,24 @@ from aeon.core.config import Config
 from aeon.models.router import ModelRouter
 
 from .store import Skill, SkillStore
+from .forge import _parse_draft
 
 _PROMPT = """You review a finished assistant session and decide whether it \
 contains a reusable procedure worth saving as a skill for next time.
 
-If yes, reply with ONLY a JSON object:
-{"name": "kebab-case-name", "description": "one line", "body": "markdown steps"}
+If yes, reply in EXACTLY this format (the body is multi-line markdown):
+
+NAME: kebab-case-name
+DESCRIPTION: one line
+BODY:
+1. first step
+2. second step
 
 If the session is too trivial or one-off to generalize, reply with exactly:
 NO_SKILL
 
 Session transcript:
 """
-
-_JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
 def _transcript(messages: List[Dict]) -> str:
@@ -53,23 +55,14 @@ def propose_from_transcript(
         if delta.kind == "text":
             reply += delta.text
 
-    if "NO_SKILL" in reply and "{" not in reply:
+    if "NO_SKILL" in reply and "NAME:" not in reply:
         return None
-    match = _JSON_RE.search(reply)
-    if not match:
-        return None
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return None
-    name = str(data.get("name", "")).strip()
-    description = str(data.get("description", "")).strip()
-    body = str(data.get("body", "")).strip()
-    if not (name and description and body):
+    draft = _parse_draft(reply)
+    if draft is None:
         return None
 
     store = SkillStore(config)
     try:
-        return store.propose(name, description, body)
+        return store.propose(draft["name"], draft["description"], draft["body"])
     except ValueError:
         return None
