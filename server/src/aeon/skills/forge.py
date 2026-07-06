@@ -24,8 +24,14 @@ Topic: {topic}
 Research report:
 {report}
 {feedback}
-Reply with ONLY a JSON object:
-{{"name": "kebab-case-name", "description": "one line", "body": "markdown steps"}}"""
+Reply in EXACTLY this format and nothing else (the body is multi-line markdown):
+
+NAME: kebab-case-name
+DESCRIPTION: one line
+BODY:
+1. first concrete step
+2. second concrete step
+(more steps as needed)"""
 
 _CRITIQUE_PROMPT = """You are a strict reviewer. Judge whether this SKILL is worth \
 keeping. Score 1-5 each: specific (concrete, not vague), grounded (supported by \
@@ -70,7 +76,9 @@ def _complete(client, model, prompt: str) -> str:
 
 
 def _parse_json(text: str) -> Optional[dict]:
-    match = _JSON_RE.search(text)
+    # Models often wrap JSON in ```json fences — strip them before matching.
+    cleaned = re.sub(r"```(?:json)?", "", text)
+    match = _JSON_RE.search(cleaned)
     if not match:
         return None
     try:
@@ -79,19 +87,26 @@ def _parse_json(text: str) -> Optional[dict]:
         return None
 
 
-def draft_skill(topic: str, report: str, client, model, feedback: str = "") -> Optional[Dict]:
-    fb = f"\nFix these problems from the last attempt:\n{feedback}\n" if feedback else ""
-    data = _parse_json(
-        _complete(client, model, _DRAFT_PROMPT.format(topic=topic, report=report, feedback=fb))
-    )
-    if not data:
+def _parse_draft(text: str) -> Optional[Dict]:
+    """Parse the delimiter-based draft format (tolerates a multi-line body)."""
+    name_m = re.search(r"(?im)^\s*NAME:\s*(.+?)\s*$", text)
+    desc_m = re.search(r"(?im)^\s*DESCRIPTION:\s*(.+?)\s*$", text)
+    body_m = re.search(r"(?is)\bBODY:\s*\n?(.*)$", text)
+    if not (name_m and desc_m and body_m):
         return None
-    name = str(data.get("name", "")).strip()
-    description = str(data.get("description", "")).strip()
-    body = str(data.get("body", "")).strip()
+    name = name_m.group(1).strip().strip("`").strip()
+    description = desc_m.group(1).strip()
+    body = body_m.group(1).strip().strip("`").strip()
     if not (name and description and body) or not _NAME_RE.match(name):
         return None
     return {"name": name, "description": description, "body": body}
+
+
+def draft_skill(topic: str, report: str, client, model, feedback: str = "") -> Optional[Dict]:
+    fb = f"\nFix these problems from the last attempt:\n{feedback}\n" if feedback else ""
+    return _parse_draft(
+        _complete(client, model, _DRAFT_PROMPT.format(topic=topic, report=report, feedback=fb))
+    )
 
 
 def critique_skill(draft: Dict, report: str, client, model) -> Dict:

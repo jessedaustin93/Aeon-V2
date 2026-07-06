@@ -21,20 +21,31 @@ class ReplyClient:
 
 # ---------------------------------------------------------------- draft/critique
 
-def test_draft_parses_json():
-    c = ReplyClient('{"name":"mesh-health","description":"d","body":"1. ping hub"}')
+def test_draft_parses_delimited():
+    c = ReplyClient("NAME: mesh-health\nDESCRIPTION: check the mesh\nBODY:\n1. ping hub")
     d = forge.draft_skill("mesh", "REPORT", c, "m")
     assert d["name"] == "mesh-health"
     assert d["body"] == "1. ping hub"
 
 
+def test_draft_keeps_multiline_body():
+    # The whole reason for the delimiter format: bodies span many lines.
+    reply = ("NAME: v4-fix\nDESCRIPTION: fix V4 drivers\nBODY:\n"
+             "1. blacklist dvb_usb_rtl28xxu\n2. reload udev\n3. test with rtl_test")
+    d = forge.draft_skill("t", "R", ReplyClient(reply), "m")
+    assert d["name"] == "v4-fix"
+    assert "blacklist dvb_usb_rtl28xxu" in d["body"]
+    assert "rtl_test" in d["body"]
+    assert d["body"].count("\n") == 2
+
+
 def test_draft_rejects_bad_name():
-    c = ReplyClient('{"name":"Bad Name","description":"d","body":"b"}')
+    c = ReplyClient("NAME: Bad Name\nDESCRIPTION: d\nBODY:\nstep")
     assert forge.draft_skill("t", "R", c, "m") is None
 
 
 def test_draft_rejects_incomplete():
-    c = ReplyClient('{"name":"x","description":""}')
+    c = ReplyClient("NAME: x\nDESCRIPTION:")
     assert forge.draft_skill("t", "R", c, "m") is None
 
 
@@ -138,7 +149,7 @@ def _fake_research(report_text, sources):
 
 def test_forge_success_lands_proposal(config):
     client = ReplyClient(
-        '{"name":"v4-triage","description":"triage RTL-SDR V4 issues","body":"1. check driver"}',
+        "NAME: v4-triage\nDESCRIPTION: triage RTL-SDR V4 issues\nBODY:\n1. check driver",
         '{"passed": true, "scores":{"specific":5,"grounded":5,"actionable":5}, "issues":[]}',
         "How do I fix V4 drivers?",
         '{"with_better": true, "reason": "grounded in sources"}',
@@ -159,11 +170,11 @@ def test_forge_success_lands_proposal(config):
 
 def test_forge_rejected_on_critique(config):
     client = ReplyClient(
-        '{"name":"junk","description":"d","body":"vague"}',
+        "NAME: junk\nDESCRIPTION: d\nBODY:\nvague",
         '{"passed": false, "scores":{"specific":1}, "issues":["too vague"]}',
-        '{"name":"junk","description":"d","body":"still vague"}',
+        "NAME: junk\nDESCRIPTION: d\nBODY:\nstill vague",
         '{"passed": false, "scores":{"specific":1}, "issues":["still vague"]}',
-        '{"name":"junk","description":"d","body":"vague again"}',
+        "NAME: junk\nDESCRIPTION: d\nBODY:\nvague again",
         '{"passed": false, "scores":{"specific":1}, "issues":["nope"]}',
     )
     events = list(forge.forge_skill(
@@ -177,7 +188,7 @@ def test_forge_rejected_on_critique(config):
 
 def test_forge_rejected_when_ab_not_better(config):
     client = ReplyClient(
-        '{"name":"okskill","description":"d","body":"1. do the thing"}',
+        "NAME: okskill\nDESCRIPTION: d\nBODY:\n1. do the thing",
         '{"passed": true, "scores":{"specific":4,"grounded":4,"actionable":4}, "issues":[]}',
         "test task?",
         '{"with_better": false, "reason": "no improvement"}',
