@@ -51,6 +51,8 @@ export const api = {
     req<{ skill: Skill | null }>("POST", "/api/skills/propose", { session_id }),
   approveSkill: (name: string) => req<Skill>("POST", `/api/skills/${name}/approve`),
   rejectSkill: (name: string) => req("POST", `/api/skills/${name}/reject`),
+  forgeSkill: (topic: string, onEvent: (e: AgentEvent) => void) =>
+    stream("/api/skills/forge", { topic }, onEvent),
   research: () => req<{ runs: ResearchRun[] }>("GET", "/api/research"),
   researchRun: (id: string) => req<ResearchRun & { report: string }>("GET", `/api/research/${id}`),
   mesh: () => req<MeshInfo>("GET", "/api/mesh"),
@@ -133,11 +135,19 @@ export interface Approval {
   created_at: string;
   status: string;
 }
+export interface SkillEvidence {
+  topic?: string;
+  sources?: { url: string; title: string }[];
+  scores?: Record<string, number>;
+  ab?: { with_better: boolean; reason: string; task: string };
+  report_excerpt?: string;
+}
 export interface Skill {
   name: string;
   description: string;
   body: string;
   path?: string;
+  evidence?: SkillEvidence | null;
 }
 export interface ResearchRun {
   id: string;
