@@ -132,7 +132,9 @@ def _run_once(loop, task: str, preamble: str = "") -> str:
 
 def ab_test(draft: Dict, config: Config, router: ModelRouter, loop_factory=None) -> Dict:
     """Run the skill on a representative task with vs without it, and judge."""
-    client, model = router.resolve("deep")
+    # Task-gen and judging want fast, clean JSON — the instruct (chat) model,
+    # not the slow thinking (deep) model that research uses.
+    client, model = router.resolve("chat")
     task = _complete(
         client, model,
         _TASK_PROMPT.format(name=draft["name"], description=draft["description"]),
@@ -188,7 +190,8 @@ def forge_skill(topic, config=None, router=None, max_attempts=3,
         yield AgentEvent("error", {"error": "research produced no report"})
         return
 
-    client, model = router.resolve("deep")
+    # Draft/critique run on the fast instruct model; research (above) used deep.
+    client, model = router.resolve("chat")
     draft = None
     critique = {"issues": []}
     for attempt in range(1, max_attempts + 1):
