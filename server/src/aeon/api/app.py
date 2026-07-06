@@ -31,6 +31,21 @@ from aeon.mesh import MeshClient, MeshConfig
 from .sessions import SessionStore
 
 
+def _sse(events) -> Iterator[str]:
+    """Serialize an AgentEvent iterator as SSE, guaranteeing a terminal frame.
+
+    If the underlying generator raises (e.g. a model-call timeout), emit an
+    `error` event instead of letting the stream die with no terminal frame —
+    clients rely on always seeing a `done` or `error`.
+    """
+    try:
+        for event in events:
+            yield f"data: {json.dumps(asdict(event))}\n\n"
+    except Exception as exc:  # noqa: BLE001 — must not leak a dead stream
+        payload = {"kind": "error", "data": {"error": f"{type(exc).__name__}: {exc}"}}
+        yield f"data: {json.dumps(payload)}\n\n"
+
+
 def _check_auth(request: Request) -> None:
     token = os.environ.get("AEON_API_TOKEN", "").strip()
     if token:
@@ -123,18 +138,18 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
             if m.get("role") in ("user", "assistant") and m.get("content")
         ]
 
-        def stream() -> Iterator[str]:
+        def events():
             reply = ""
             for event in app.state.loop.run(history, role=role):
                 if event.kind == "text":
                     reply += event.data.get("text", "")
                 elif event.kind == "done" and not reply:
                     reply = event.data.get("text", "")
-                yield f"data: {json.dumps(asdict(event))}\n\n"
+                yield event
             if reply:
                 sessions.append(session_id, {"role": "assistant", "content": reply})
 
-        return StreamingResponse(stream(), media_type="text/event-stream")
+        return StreamingResponse(_sse(events()), media_type="text/event-stream")
 
     @app.get("/api/skills", dependencies=[auth])
     def list_skills() -> Dict:
@@ -160,11 +175,8 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
         if not topic:
             raise HTTPException(status_code=422, detail="topic is required")
 
-        def stream() -> Iterator[str]:
-            for event in forge_skill(topic, cfg, router):
-                yield f"data: {json.dumps(asdict(event))}\n\n"
-
-        return StreamingResponse(stream(), media_type="text/event-stream")
+        return StreamingResponse(_sse(forge_skill(topic, cfg, router)),
+                                 media_type="text/event-stream")
 
     @app.post("/api/skills/{name}/approve", dependencies=[auth])
     def approve_skill(name: str) -> Dict:
@@ -190,11 +202,8 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
         if not question:
             raise HTTPException(status_code=422, detail="question is required")
 
-        def stream() -> Iterator[str]:
-            for event in run_research(question, cfg, router):
-                yield f"data: {json.dumps(asdict(event))}\n\n"
-
-        return StreamingResponse(stream(), media_type="text/event-stream")
+        return StreamingResponse(_sse(run_research(question, cfg, router)),
+                                 media_type="text/event-stream")
 
     @app.get("/api/research", dependencies=[auth])
     def list_research() -> Dict:

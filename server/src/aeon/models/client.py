@@ -5,9 +5,14 @@ the SSE lines of /chat/completions; incremental tool-call argument chunks
 are aggregated so consumers always receive complete tool calls.
 """
 import json
+import os
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Dict, Iterator, List, Optional
+
+# Local inference (esp. a "thinking" model synthesizing a long report on a
+# mid-range GPU) can take minutes. Default generously; override with the env var.
+DEFAULT_TIMEOUT = float(os.environ.get("AEON_LLM_TIMEOUT", "300"))
 
 
 def _request(url: str, data: Optional[bytes], timeout: float):
@@ -69,9 +74,9 @@ class _ToolCallBuffer:
 class ChatClient:
     """Minimal OpenAI-compatible client for one base URL."""
 
-    def __init__(self, base_url: str, timeout: float = 120.0):
+    def __init__(self, base_url: str, timeout: Optional[float] = None):
         self.base_url = base_url.rstrip("/")
-        self.timeout = timeout
+        self.timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
 
     def list_models(self) -> List[str]:
         data = _get_json(f"{self.base_url}/models", self.timeout)

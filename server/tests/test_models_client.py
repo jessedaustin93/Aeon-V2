@@ -85,6 +85,19 @@ def test_chat_stream_text_and_tool_args_aggregate(monkeypatch):
     assert deltas[-1].kind == "finish"
 
 
+def test_timeout_defaults_from_env(monkeypatch):
+    import importlib
+    from aeon.models import client as cm
+    monkeypatch.setenv("AEON_LLM_TIMEOUT", "42")
+    importlib.reload(cm)
+    try:
+        assert cm.ChatClient("http://x/v1").timeout == 42.0
+        assert cm.ChatClient("http://x/v1", timeout=5).timeout == 5.0
+    finally:
+        monkeypatch.delenv("AEON_LLM_TIMEOUT", raising=False)
+        importlib.reload(cm)
+
+
 def test_list_models(monkeypatch):
     monkeypatch.setattr(
         client_mod, "_get_json",

@@ -147,6 +147,22 @@ def test_forge_requires_topic(client):
     assert client.post("/api/skills/forge", headers=AUTH, json={"topic": ""}).status_code == 422
 
 
+def test_stream_emits_error_frame_on_exception(client, monkeypatch):
+    def boom(topic, config, router, **kwargs):
+        yield __import__("aeon.agent.loop", fromlist=["AgentEvent"]).AgentEvent(
+            "text", {"text": "starting\n"})
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr("aeon.api.app.forge_skill", boom)
+    resp = client.post("/api/skills/forge", headers=AUTH, json={"topic": "x"})
+    assert resp.status_code == 200
+    events = [json.loads(l[5:]) for l in resp.text.splitlines() if l.startswith("data:")]
+    assert events[0]["kind"] == "text"
+    # The stream must always end in a terminal error frame, never die silently.
+    assert events[-1]["kind"] == "error"
+    assert "TimeoutError" in events[-1]["data"]["error"]
+
+
 def test_skill_reject(client):
     store = client.app.state.skill_store
     store.propose("junk", "d", "b")
