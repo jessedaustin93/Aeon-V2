@@ -59,6 +59,14 @@ format. Aeon proposes a skill from a finished session; a human approves it befor
 it loads. Active skills are advertised in the system prompt; the model pulls full
 instructions with `skill_use`.
 
+**Skill Forge (`aeon.skills.forge`).** Research a topic → draft a skill grounded
+in the report → a rubric **critique gate** (regenerate on fail) → a live **A/B
+test** (the agent runs a representative task with vs without the skill, judged) →
+land as a proposal *with evidence* (sources, scores, A/B verdict) only if both
+gates pass. This is what stops a skill from being a hollow label: an ungrounded
+or unhelpful draft is rejected, never proposed. Research runs on the `deep`
+model; the draft/critique/judge calls run on the faster `chat` model.
+
 **Research (`aeon.research`).** Plan queries → search → read sources → write a
 cited markdown report, using the `deep` role.
 

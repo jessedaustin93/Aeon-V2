@@ -17,6 +17,7 @@ newline-delimited `data: {json}` frames carrying `AgentEvent`s.
 | POST | `/api/approvals/{id}` | resolve `{approved: bool}` |
 | GET  | `/api/skills` | active skills + proposals |
 | POST | `/api/skills/propose` | distill a skill from `{session_id}` |
+| POST | `/api/skills/forge` | **stream** research → validated skill from `{topic}` |
 | POST | `/api/skills/{name}/approve` | activate a proposal |
 | POST | `/api/skills/{name}/reject` | discard a proposal |
 | POST | `/api/research` | **stream** a deep-research run `{question}` |
@@ -31,6 +32,10 @@ newline-delimited `data: {json}` frames carrying `AgentEvent`s.
 `text` (streamed token), `tool_call` (`{id, tool, arguments}`),
 `approval_pending` (`{approval_id, tool, arguments}`), `tool_result`
 (`{id, tool, result}`), `done` (`{text}`), `error` (`{error}`).
+
+The **forge** stream emits `text` progress lines and ends in either `done`
+(`{skill, evidence}` — a validated proposal) or `error` (`{error, ...}` — the
+skill was rejected by the critique or A/B gate; no proposal is created).
 
 ## Example
 
