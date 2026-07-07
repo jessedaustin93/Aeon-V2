@@ -166,7 +166,13 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
             raise HTTPException(status_code=422, detail="prompt is required")
         title = (body.get("title") or "").strip()
         role = (body.get("role") or "chat").strip()
-        return app.state.task_runner.start(prompt=prompt, title=title, role=role)
+        self_scaffold = bool(body.get("self_scaffold"))
+        return app.state.task_runner.start(
+            prompt=prompt,
+            title=title,
+            role=role,
+            self_scaffold=self_scaffold,
+        )
 
     @app.get("/api/tasks/{run_id}", dependencies=[auth])
     def get_task(run_id: str) -> Dict:

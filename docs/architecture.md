@@ -53,7 +53,10 @@ require approval.
 **Background tasks.** The Tasks tab starts long-running checks through
 `/api/tasks`. Each run is saved under `memory/logs/task-runs/` with status,
 result, error, and a compact event trail, so routine checks do not occupy a chat
-stream. Approval-gated tools still go through the shared approval broker.
+stream. With `self_scaffold` enabled, Aeon first asks the routed model to draft
+the task scaffold, records it as `scaffold_start`/`scaffold` events, then
+executes through the normal agent loop. Approval-gated tools still go through the
+shared approval broker.
 
 **Memory (`aeon.core`).** The aeon-v1 engine, unchanged: append-only raw memory,
 episodic/semantic/reflection/consolidation layers, write guard, protected core,

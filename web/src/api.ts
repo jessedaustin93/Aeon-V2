@@ -56,8 +56,8 @@ export const api = {
   research: () => req<{ runs: ResearchRun[] }>("GET", "/api/research"),
   researchRun: (id: string) => req<ResearchRun & { report: string }>("GET", `/api/research/${id}`),
   tasks: () => req<{ tasks: TaskRun[] }>("GET", "/api/tasks"),
-  createTask: (prompt: string, title = "", role = "chat") =>
-    req<TaskRun>("POST", "/api/tasks", { prompt, title, role }),
+  createTask: (prompt: string, title = "", role = "chat", self_scaffold = false) =>
+    req<TaskRun>("POST", "/api/tasks", { prompt, title, role, self_scaffold }),
   task: (id: string) => req<TaskRun>("GET", `/api/tasks/${id}`),
   mesh: () => req<MeshInfo>("GET", "/api/mesh"),
   memorySearch: (q: string) =>
@@ -166,6 +166,7 @@ export interface TaskRun {
   title: string;
   prompt: string;
   role: string;
+  self_scaffold?: boolean;
   status: "queued" | "running" | "done" | "error";
   created_at: string;
   updated_at: string;
@@ -186,6 +187,14 @@ export interface MemoryHit {
   score?: number;
 }
 export interface AgentEvent {
-  kind: "text" | "tool_call" | "tool_result" | "approval_pending" | "done" | "error";
+  kind:
+    | "text"
+    | "tool_call"
+    | "tool_result"
+    | "approval_pending"
+    | "scaffold_start"
+    | "scaffold"
+    | "done"
+    | "error";
   data: Record<string, unknown>;
 }

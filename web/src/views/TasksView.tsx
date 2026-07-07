@@ -6,6 +6,7 @@ export function TasksView() {
   const [activeId, setActiveId] = useState("");
   const [prompt, setPrompt] = useState("");
   const [role, setRole] = useState("chat");
+  const [selfScaffold, setSelfScaffold] = useState(true);
   const [busy, setBusy] = useState(false);
   const [approvals, setApprovals] = useState<Approval[]>([]);
 
@@ -33,7 +34,7 @@ export function TasksView() {
     if (!text || busy) return;
     setBusy(true);
     try {
-      const task = await api.createTask(text, text.slice(0, 80), role);
+      const task = await api.createTask(text, text.slice(0, 80), role, selfScaffold);
       setTasks((items) => [task, ...items]);
       setActiveId(task.id);
       setPrompt("");
@@ -74,6 +75,14 @@ export function TasksView() {
                 Run
               </button>
             </div>
+            <label className="task-toggle">
+              <input
+                type="checkbox"
+                checked={selfScaffold}
+                onChange={(e) => setSelfScaffold(e.target.checked)}
+              />
+              <span>self-scaffold</span>
+            </label>
           </div>
 
           {tasks.map((task) => (
@@ -118,7 +127,10 @@ export function TasksView() {
                     <div className="readout">{active.role} role</div>
                     <h2>{active.title}</h2>
                   </div>
-                  <span className={`chip ${chipClass(active.status)}`}>{active.status}</span>
+                  <div className="task-status-stack">
+                    {active.self_scaffold && <span className="chip chip-amber">self-scaffold</span>}
+                    <span className={`chip ${chipClass(active.status)}`}>{active.status}</span>
+                  </div>
                 </div>
                 <p className="task-prompt">{active.prompt}</p>
                 {active.error && <pre className="task-error">{active.error}</pre>}

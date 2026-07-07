@@ -205,8 +205,13 @@ def test_task_run_endpoints(client):
         def __init__(self, store):
             self.store = store
 
-        def start(self, prompt, title="", role="chat"):
-            run = self.store.create(prompt=prompt, title=title, role=role)
+        def start(self, prompt, title="", role="chat", self_scaffold=False):
+            run = self.store.create(
+                prompt=prompt,
+                title=title,
+                role=role,
+                self_scaffold=self_scaffold,
+            )
             self.store.patch(run["id"], status="done", result="checked")
             return self.store.get(run["id"])
 
@@ -214,13 +219,14 @@ def test_task_run_endpoints(client):
     created = client.post(
         "/api/tasks",
         headers=AUTH,
-        json={"prompt": "check qbit", "title": "qbit", "role": "deep"},
+        json={"prompt": "check qbit", "title": "qbit", "role": "deep", "self_scaffold": True},
     )
     assert created.status_code == 200
     body = created.json()
     assert body["status"] == "done"
     assert body["result"] == "checked"
     assert body["role"] == "deep"
+    assert body["self_scaffold"] is True
 
     listed = client.get("/api/tasks", headers=AUTH).json()["tasks"]
     assert [t["id"] for t in listed] == [body["id"]]

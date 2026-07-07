@@ -12,13 +12,16 @@ research, skills, and persistent memory — served from your own hardware.
   machines' LLM endpoints.
 - **Model awareness:** Aeon can inspect current role→model routing and delegate
   bounded subtasks to configured roles such as `chat` or `deep`.
+- **Self-scaffolded tasks:** background Tasks can ask the routed local model to
+  draft a task-specific scaffold before Aeon executes it through tools,
+  approvals, and logs.
 
 ## Status
 
 Feature-complete v2.0-alpha: streaming chat with tool calling, human-gated
-approvals, background Tasks, skills + learning loop, deep research, Agent Mesh
-peer + multi-machine LLM routing, and the "Signals Console" web UI (PWA). 820+
-server tests.
+approvals, self-scaffolded background Tasks, skills + learning loop, deep
+research, Agent Mesh peer + multi-machine LLM routing, and the "Signals Console"
+web UI (PWA). 820+ server tests.
 
 - Design & plans: `docs/superpowers/specs/` and `docs/superpowers/plans/`
 - Architecture: [`docs/architecture.md`](docs/architecture.md)

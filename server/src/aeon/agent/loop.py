@@ -29,6 +29,21 @@ SYSTEM_PROMPT = (
     "report real results, never invent tool output."
 )
 
+SCAFFOLD_PROMPT = (
+    "You are the routed coding/task model inside Aeon. Build a task-specific "
+    "execution scaffold for Aeon to run under its approval and tool safety rules. "
+    "Do not say there are no active tasks; the active task is provided below. "
+    "Return a concise scaffold with: objective, assumptions, tool plan, ordered "
+    "steps, verification, retry/stop criteria, and approval gates. Do not execute "
+    "tools in this response."
+)
+
+SCAFFOLD_EXECUTION_PROMPT = (
+    "A routed local model produced this task scaffold for the active objective. "
+    "Use it as the initial execution plan, revise it when tool results show it is "
+    "wrong, and execute only through Aeon's available tools and approval gates."
+)
+
 
 @dataclass
 class AgentEvent:
@@ -127,6 +142,72 @@ class AgentLoop:
                 yield from self._execute(call, convo)
 
         yield AgentEvent("error", {"error": "max iterations reached"})
+
+    def run_with_scaffold(
+        self,
+        messages: List[Dict],
+        role: str = "chat",
+        scaffold_role: Optional[str] = None,
+    ) -> Iterator[AgentEvent]:
+        """Ask the routed model to self-scaffold the active task, then execute it.
+
+        The scaffold call is intentionally tool-less. Aeon still owns tool
+        execution, approvals, memory, and logging; the backing model supplies the
+        task-specific harness that guides the normal agent loop.
+        """
+        task_text = "\n\n".join(
+            str(m.get("content", "")).strip()
+            for m in messages
+            if m.get("role") == "user" and str(m.get("content", "")).strip()
+        ).strip()
+        if not task_text:
+            yield AgentEvent("error", {"error": "active task is required for self-scaffold"})
+            return
+
+        try:
+            client, model = self.router.resolve(scaffold_role or role)
+        except ValueError as exc:
+            yield AgentEvent("error", {"error": str(exc)})
+            return
+
+        tool_names = ", ".join(d.name for d in self.definitions if d.enabled) or "none"
+        prompt = (
+            f"Active task:\n{task_text}\n\n"
+            f"Available Aeon tools:\n{tool_names}\n\n"
+            "Create the scaffold now."
+        )
+        scaffold = ""
+        yield AgentEvent(
+            "scaffold_start",
+            {"role": scaffold_role or role, "model": model, "base_url": client.base_url},
+        )
+        try:
+            for delta in client.chat(
+                model,
+                [
+                    {"role": "system", "content": SCAFFOLD_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                tools=[],
+                stream=True,
+            ):
+                if delta.kind == "text":
+                    scaffold += delta.text
+        except Exception as exc:
+            yield AgentEvent("error", {"error": f"scaffold model call failed: {exc}"})
+            return
+
+        scaffold = scaffold.strip()
+        if not scaffold:
+            yield AgentEvent("error", {"error": "scaffold model returned no scaffold"})
+            return
+        yield AgentEvent("scaffold", {"text": scaffold})
+
+        scaffolded_messages = [
+            {"role": "system", "content": f"{self._system_prompt()}\n\n{SCAFFOLD_EXECUTION_PROMPT}"},
+            {"role": "user", "content": f"{task_text}\n\nSelf-scaffold:\n{scaffold}"},
+        ]
+        yield from self.run(scaffolded_messages, role=role)
 
     # -------------------------------------------------------------- execute
 

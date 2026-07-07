@@ -122,6 +122,14 @@
 .task-create { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .task-create textarea { resize: vertical; min-height: 92px; }
 .task-create-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.task-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+.task-toggle input { accent-color: var(--amber); }
 .task-item {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -162,6 +170,12 @@
   justify-content: space-between;
   gap: 14px;
   align-items: flex-start;
+}
+.task-status-stack {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
 }
 .task-result h2 {
   margin: 4px 0 0;

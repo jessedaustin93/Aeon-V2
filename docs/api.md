@@ -14,7 +14,7 @@ newline-delimited `data: {json}` frames carrying `AgentEvent`s.
 | GET  | `/api/sessions/{id}` | full session with messages |
 | POST | `/api/chat` | **stream** `{session_id, message, role?}` |
 | GET  | `/api/tasks` | list background task runs |
-| POST | `/api/tasks` | start a background task `{prompt, title?, role?}` |
+| POST | `/api/tasks` | start a background task `{prompt, title?, role?, self_scaffold?}` |
 | GET  | `/api/tasks/{id}` | one background task with result + event trail |
 | GET  | `/api/approvals` | pending tool approvals |
 | POST | `/api/approvals/{id}` | resolve `{approved: bool}` |
@@ -32,9 +32,14 @@ newline-delimited `data: {json}` frames carrying `AgentEvent`s.
 
 ## AgentEvent kinds
 
-`text` (streamed token), `tool_call` (`{id, tool, arguments}`),
+`text` (streamed token), `scaffold_start` (`{role, model, base_url}`),
+`scaffold` (`{text}`), `tool_call` (`{id, tool, arguments}`),
 `approval_pending` (`{approval_id, tool, arguments}`), `tool_result`
 (`{id, tool, result}`), `done` (`{text}`), `error` (`{error}`).
+
+For `/api/tasks`, `self_scaffold: true` asks the routed model to draft a
+task-specific scaffold before normal Aeon tool execution begins. Aeon still owns
+approval gates, tool execution, logs, and the final task result.
 
 The **forge** stream emits `text` progress lines and ends in either `done`
 (`{skill, evidence}` — a validated proposal) or `error` (`{error, ...}` — the

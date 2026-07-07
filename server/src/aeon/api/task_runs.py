@@ -28,13 +28,20 @@ class TaskRunStore:
             raise ValueError(f"Invalid task run id: {run_id!r}")
         return self.dir / f"{run_id}.json"
 
-    def create(self, prompt: str, title: str = "", role: str = "chat") -> Dict:
+    def create(
+        self,
+        prompt: str,
+        title: str = "",
+        role: str = "chat",
+        self_scaffold: bool = False,
+    ) -> Dict:
         now = utc_now_iso()
         run = {
             "id": uuid.uuid4().hex[:12],
             "title": title or prompt[:80] or "Background task",
             "prompt": prompt,
             "role": role or "chat",
+            "self_scaffold": bool(self_scaffold),
             "status": "queued",
             "created_at": now,
             "updated_at": now,
@@ -64,7 +71,7 @@ class TaskRunStore:
                 run = json.loads(path.read_text(encoding="utf-8"))
                 runs.append({k: run.get(k, "") for k in (
                     "id", "title", "prompt", "role", "status", "created_at",
-                    "updated_at", "result", "error",
+                    "updated_at", "result", "error", "self_scaffold",
                 )})
             except (OSError, json.JSONDecodeError):
                 continue
@@ -108,18 +115,29 @@ class ThreadedTaskRunner:
         self.broker = broker
         self.skill_store = skill_store
 
-    def start(self, prompt: str, title: str = "", role: str = "chat") -> Dict:
-        run = self.store.create(prompt=prompt, title=title, role=role)
+    def start(
+        self,
+        prompt: str,
+        title: str = "",
+        role: str = "chat",
+        self_scaffold: bool = False,
+    ) -> Dict:
+        run = self.store.create(
+            prompt=prompt,
+            title=title,
+            role=role,
+            self_scaffold=self_scaffold,
+        )
         thread = threading.Thread(
             target=self._run,
-            args=(run["id"], prompt, role),
+            args=(run["id"], prompt, role, self_scaffold),
             name=f"aeon-task-{run['id']}",
             daemon=True,
         )
         thread.start()
         return run
 
-    def _run(self, run_id: str, prompt: str, role: str) -> None:
+    def _run(self, run_id: str, prompt: str, role: str, self_scaffold: bool) -> None:
         self.store.patch(run_id, status="running")
         reply = ""
         loop = AgentLoop(
@@ -130,7 +148,12 @@ class ThreadedTaskRunner:
             approval_timeout=120.0,
         )
         try:
-            for event in loop.run([{"role": "user", "content": prompt}], role=role):
+            events = (
+                loop.run_with_scaffold([{"role": "user", "content": prompt}], role=role)
+                if self_scaffold
+                else loop.run([{"role": "user", "content": prompt}], role=role)
+            )
+            for event in events:
                 self.store.append_event(run_id, {"kind": event.kind, "data": event.data})
                 if event.kind == "text":
                     reply += event.data.get("text", "")

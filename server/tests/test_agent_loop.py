@@ -170,6 +170,25 @@ def test_system_prompt_injected(config):
     assert "model_status" in first["content"]
 
 
+def test_run_with_scaffold_drafts_then_executes(config):
+    turns = [
+        [ChatDelta("text", text="Objective: inspect first\nVerify: report result"),
+         ChatDelta("finish", finish_reason="stop")],
+        [ChatDelta("text", text="executed from scaffold"),
+         ChatDelta("finish", finish_reason="stop")],
+    ]
+    loop, fake = make_loop(config, turns)
+    events = list(loop.run_with_scaffold([{"role": "user", "content": "check disk"}]))
+    kinds = [e.kind for e in events]
+    assert kinds == ["scaffold_start", "scaffold", "text", "done"]
+    assert "Objective: inspect first" in events[1].data["text"]
+    assert fake.requests[0]["tools"] == []
+    assert "Active task:\ncheck disk" in fake.requests[0]["messages"][1]["content"]
+    execute_messages = fake.requests[1]["messages"]
+    assert "Self-scaffold:" in execute_messages[1]["content"]
+    assert "Objective: inspect first" in execute_messages[1]["content"]
+
+
 def test_tools_disabled_sends_no_tools(config):
     turns = [[ChatDelta("text", text="hi"), ChatDelta("finish", finish_reason="stop")]]
     router = ModelRouter(config)
