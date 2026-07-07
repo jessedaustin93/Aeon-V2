@@ -5,6 +5,7 @@ from aeon.tools import all_handlers
 from aeon.tools import fs as fs_mod
 from aeon.tools import memory as memory_mod
 from aeon.tools import mesh as mesh_mod
+from aeon.tools import snifferops as snifferops_mod
 from aeon.tools import vault as vault_mod
 from aeon.tools import web as web_mod
 
@@ -179,6 +180,30 @@ def test_mesh_post_configured(config, monkeypatch):
     )
     assert result == {"posted": True, "message_id": 99}
     assert posted["recipient"] == "claude@x1"
+
+
+# ---------------------------------------------------------------- snifferops
+
+def test_snifferops_telemetry_summarizes_and_filters(config, monkeypatch):
+    def fake_fetch(url, timeout=10.0):
+        if url.endswith("/snifferops/health"):
+            return {"ok": True}
+        return {
+            "totalSignals": 3,
+            "signals": [
+                {"type": "RTL_SDR", "name": "RF A", "signalStrength": -30},
+                {"type": "WiFi", "name": "AP", "signalStrength": -40},
+                {"type": "RTL_SDR", "name": "RF B", "signalStrength": -10},
+            ],
+        }
+
+    monkeypatch.setattr(snifferops_mod, "_fetch_json", fake_fetch)
+    result = snifferops_mod.snifferops_telemetry({"type": "RTL_SDR", "limit": 1}, config)
+    assert result["health"] == {"ok": True}
+    assert result["totalSignals"] == 3
+    assert result["byType"] == {"RTL_SDR": 2, "WiFi": 1}
+    assert result["filteredSignals"] == 2
+    assert result["signals"] == [{"type": "RTL_SDR", "name": "RF B", "signalStrength": -10}]
 
 
 def test_vault_unconfigured_returns_error(config):
