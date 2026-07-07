@@ -93,7 +93,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .btn-danger { border-color: var(--alert); color: #ffb4b6; background: var(--alert-soft); }
 .btn-danger:hover { border-color: var(--alert); filter: brightness(1.1); }
 
-input, textarea {
+input, textarea, select {
   font-family: var(--sans);
   background: var(--chassis-deep);
   border: 1px solid var(--line);

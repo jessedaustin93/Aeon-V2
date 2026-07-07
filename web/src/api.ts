@@ -55,6 +55,10 @@ export const api = {
     stream("/api/skills/forge", { topic }, onEvent),
   research: () => req<{ runs: ResearchRun[] }>("GET", "/api/research"),
   researchRun: (id: string) => req<ResearchRun & { report: string }>("GET", `/api/research/${id}`),
+  tasks: () => req<{ tasks: TaskRun[] }>("GET", "/api/tasks"),
+  createTask: (prompt: string, title = "", role = "chat") =>
+    req<TaskRun>("POST", "/api/tasks", { prompt, title, role }),
+  task: (id: string) => req<TaskRun>("GET", `/api/tasks/${id}`),
   mesh: () => req<MeshInfo>("GET", "/api/mesh"),
   memorySearch: (q: string) =>
     req<{ query: string; results: MemoryHit[] }>(
@@ -156,6 +160,18 @@ export interface ResearchRun {
   report_path: string;
   sources: { url: string; title: string }[];
   created_at: string;
+}
+export interface TaskRun {
+  id: string;
+  title: string;
+  prompt: string;
+  role: string;
+  status: "queued" | "running" | "done" | "error";
+  created_at: string;
+  updated_at: string;
+  result: string;
+  error: string;
+  events?: AgentEvent[];
 }
 export interface MeshInfo {
   agent_id: string;

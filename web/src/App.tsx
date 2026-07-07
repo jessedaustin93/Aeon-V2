@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, getToken } from "./api";
 import { ChatView } from "./views/ChatView";
 import { ResearchView } from "./views/ResearchView";
+import { TasksView } from "./views/TasksView";
 import { MemoryView } from "./views/MemoryView";
 import { SkillsView } from "./views/SkillsView";
 import { MeshView } from "./views/MeshView";
@@ -11,6 +12,7 @@ import "./app.css";
 
 const NAV = [
   { to: "/chat", label: "Chat", glyph: "◈" },
+  { to: "/tasks", label: "Tasks", glyph: "☷" },
   { to: "/research", label: "Research", glyph: "❋" },
   { to: "/memory", label: "Memory", glyph: "▦" },
   { to: "/skills", label: "Skills", glyph: "✳" },
@@ -68,6 +70,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/chat" element={<ChatView />} />
           <Route path="/chat/:sessionId" element={<ChatView />} />
+          <Route path="/tasks" element={<TasksView />} />
           <Route path="/research" element={<ResearchView />} />
           <Route path="/memory" element={<MemoryView />} />
           <Route path="/skills" element={<SkillsView />} />

@@ -13,6 +13,9 @@ newline-delimited `data: {json}` frames carrying `AgentEvent`s.
 | POST | `/api/sessions` | create a session `{title?}` |
 | GET  | `/api/sessions/{id}` | full session with messages |
 | POST | `/api/chat` | **stream** `{session_id, message, role?}` |
+| GET  | `/api/tasks` | list background task runs |
+| POST | `/api/tasks` | start a background task `{prompt, title?, role?}` |
+| GET  | `/api/tasks/{id}` | one background task with result + event trail |
 | GET  | `/api/approvals` | pending tool approvals |
 | POST | `/api/approvals/{id}` | resolve `{approved: bool}` |
 | GET  | `/api/skills` | active skills + proposals |

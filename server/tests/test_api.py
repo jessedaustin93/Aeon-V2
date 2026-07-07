@@ -200,6 +200,39 @@ def test_research_endpoints(client, monkeypatch):
     assert client.get("/api/research/nope", headers=AUTH).status_code == 404
 
 
+def test_task_run_endpoints(client):
+    class FakeTaskRunner:
+        def __init__(self, store):
+            self.store = store
+
+        def start(self, prompt, title="", role="chat"):
+            run = self.store.create(prompt=prompt, title=title, role=role)
+            self.store.patch(run["id"], status="done", result="checked")
+            return self.store.get(run["id"])
+
+    client.app.state.task_runner = FakeTaskRunner(client.app.state.task_runs)
+    created = client.post(
+        "/api/tasks",
+        headers=AUTH,
+        json={"prompt": "check qbit", "title": "qbit", "role": "deep"},
+    )
+    assert created.status_code == 200
+    body = created.json()
+    assert body["status"] == "done"
+    assert body["result"] == "checked"
+    assert body["role"] == "deep"
+
+    listed = client.get("/api/tasks", headers=AUTH).json()["tasks"]
+    assert [t["id"] for t in listed] == [body["id"]]
+    fetched = client.get(f"/api/tasks/{body['id']}", headers=AUTH).json()
+    assert fetched["prompt"] == "check qbit"
+    assert client.get("/api/tasks/nope", headers=AUTH).status_code == 404
+
+
+def test_task_run_requires_prompt(client):
+    assert client.post("/api/tasks", headers=AUTH, json={"prompt": ""}).status_code == 422
+
+
 def test_spa_serving_and_api_precedence(monkeypatch, tmp_path):
     monkeypatch.setenv("AEON_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("AEON_API_TOKEN", "tok")

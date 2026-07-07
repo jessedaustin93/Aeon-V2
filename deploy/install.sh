@@ -21,6 +21,7 @@ server/.venv/bin/pip install -q -e server/
 echo "==> Data root"
 export AEON_DATA_DIR="$DATA_DIR"
 server/.venv/bin/aeon-init-data
+server/.venv/bin/aeon-seed-runtime-skills --force
 if [ ! -f "$DATA_DIR/aeon.env" ]; then
   # aeon.env holds the API token and mesh secret — owner-only from creation.
   ( umask 177 && cp deploy/aeon.env.example "$DATA_DIR/aeon.env" )

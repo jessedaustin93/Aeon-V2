@@ -29,6 +29,7 @@ from aeon.research import ResearchStore, run_research
 from aeon.mesh import MeshClient, MeshConfig
 
 from .sessions import SessionStore
+from .task_runs import TaskRunStore, ThreadedTaskRunner
 
 
 def _sse(events) -> Iterator[str]:
@@ -69,6 +70,7 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
     skill_store = SkillStore(cfg)
     loop = AgentLoop(config=cfg, router=router, broker=broker, skill_store=skill_store)
     sessions = SessionStore(cfg)
+    task_runs = TaskRunStore(cfg)
     research_store = ResearchStore(cfg)
     mesh_client = MeshClient(MeshConfig.from_env())
     app.state.config = cfg
@@ -77,6 +79,8 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
     app.state.skill_store = skill_store
     app.state.loop = loop
     app.state.sessions = sessions
+    app.state.task_runs = task_runs
+    app.state.task_runner = ThreadedTaskRunner(cfg, task_runs, router, broker, skill_store)
     app.state.research_store = research_store
     app.state.mesh_client = mesh_client
 
@@ -150,6 +154,26 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
                 sessions.append(session_id, {"role": "assistant", "content": reply})
 
         return StreamingResponse(_sse(events()), media_type="text/event-stream")
+
+    @app.get("/api/tasks", dependencies=[auth])
+    def list_tasks() -> Dict:
+        return {"tasks": task_runs.list()}
+
+    @app.post("/api/tasks", dependencies=[auth])
+    def create_task(body: Dict) -> Dict:
+        prompt = (body.get("prompt") or "").strip()
+        if not prompt:
+            raise HTTPException(status_code=422, detail="prompt is required")
+        title = (body.get("title") or "").strip()
+        role = (body.get("role") or "chat").strip()
+        return app.state.task_runner.start(prompt=prompt, title=title, role=role)
+
+    @app.get("/api/tasks/{run_id}", dependencies=[auth])
+    def get_task(run_id: str) -> Dict:
+        run = task_runs.get(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Unknown task")
+        return run
 
     @app.get("/api/skills", dependencies=[auth])
     def list_skills() -> Dict:

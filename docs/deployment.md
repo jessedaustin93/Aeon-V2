@@ -14,8 +14,9 @@ cd Aeon-V2 && ./deploy/install.sh
 ```
 
 The installer creates the venv, installs the server, scaffolds
-`~/aeon-data/`, writes `~/aeon-data/aeon.env` from the example, builds the web
-app, and installs the systemd user services.
+`~/aeon-data/`, seeds Aeon's default runtime skills, writes
+`~/aeon-data/aeon.env` from the example, builds the web app, and installs the
+systemd user services.
 
 ## Configure
 
@@ -51,5 +52,7 @@ systemctl --user restart aeon-server aeon-mesh-peer
 
 - The API refuses remote connections unless `AEON_API_TOKEN` is set; keep it set.
 - Bind the tailnet only — do not port-forward `:8900` to the public internet.
-- `shell_run` and `mesh_post` always require in-UI approval.
+- `shell_run`, `ssh_run`, and `mesh_post` always require in-UI approval.
+- `ssh_run` only targets aliases from `AEON_SSH_HOSTS` or the service user's
+  `~/.ssh/config`; SSH private keys stay outside the repo and data directory.
 - The mesh peer runs with tools disabled unless `AEON_MESH_ENABLE_TOOLS=1`.

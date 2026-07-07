@@ -10,12 +10,15 @@ research, skills, and persistent memory — served from your own hardware.
   server at `AEON_DATA_DIR`, never in this repo.
 - **Mesh:** peers with the Agent Mesh hub; can route model calls to other
   machines' LLM endpoints.
+- **Model awareness:** Aeon can inspect current role→model routing and delegate
+  bounded subtasks to configured roles such as `chat` or `deep`.
 
 ## Status
 
 Feature-complete v2.0-alpha: streaming chat with tool calling, human-gated
-approvals, skills + learning loop, deep research, Agent Mesh peer + multi-machine
-LLM routing, and the "Signals Console" web UI (PWA). 820+ server tests.
+approvals, background Tasks, skills + learning loop, deep research, Agent Mesh
+peer + multi-machine LLM routing, and the "Signals Console" web UI (PWA). 820+
+server tests.
 
 - Design & plans: `docs/superpowers/specs/` and `docs/superpowers/plans/`
 - Architecture: [`docs/architecture.md`](docs/architecture.md)
@@ -33,6 +36,7 @@ Server only:
     python3 -m venv .venv && .venv/bin/pip install -e .[dev]
     export AEON_DATA_DIR=~/aeon-data
     .venv/bin/aeon-init-data
+    .venv/bin/aeon-seed-runtime-skills
     .venv/bin/pytest -q
     .venv/bin/aeon-server        # API + web on :8900
 

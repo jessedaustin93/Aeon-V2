@@ -1,7 +1,7 @@
 import pytest
 
 from aeon.core.config import Config
-from aeon.cli import lint_skills, add_skill
+from aeon.cli import lint_skills, add_skill, seed_runtime_skills
 from aeon.skills import SkillStore
 
 
@@ -85,4 +85,13 @@ def test_add_refuses_overwrite_without_force(data_root):
 
 def test_add_then_lint_passes(data_root):
     add_skill(["--name", "roundtrip", "--description", "d", "--body", "1. step"])
+    assert lint_skills([]) == 0
+
+
+def test_seed_runtime_skills_creates_model_skills(data_root):
+    assert seed_runtime_skills([]) == 0
+    store = SkillStore(Config())
+    names = {s.name for s in store.list_active()}
+    assert "local-model-awareness" in names
+    assert "designated-model-routing" in names
     assert lint_skills([]) == 0

@@ -46,8 +46,14 @@ in the UI. Every execution is journaled.
 
 **Tools (`aeon.tools`).** `fs_read`/`fs_list` (scoped), `shell_run` (gated),
 `web_fetch`/`web_search`, `memory_search`/`memory_save`, `vault_search`/
-`vault_read` (read-only), `skill_use`, `mesh_post` (gated). Outward-facing or
-destructive tools require approval.
+`vault_read` (read-only), `skill_use`, `model_status`, `model_delegate`,
+`ssh_run` (gated), and `mesh_post` (gated). Outward-facing or destructive tools
+require approval.
+
+**Background tasks.** The Tasks tab starts long-running checks through
+`/api/tasks`. Each run is saved under `memory/logs/task-runs/` with status,
+result, error, and a compact event trail, so routine checks do not occupy a chat
+stream. Approval-gated tools still go through the shared approval broker.
 
 **Memory (`aeon.core`).** The aeon-v1 engine, unchanged: append-only raw memory,
 episodic/semantic/reflection/consolidation layers, write guard, protected core,
@@ -57,7 +63,9 @@ repo, never in the Master Vault.
 **Skills (`aeon.skills`).** Reusable procedures in the agentskills.io markdown
 format. Aeon proposes a skill from a finished session; a human approves it before
 it loads. Active skills are advertised in the system prompt; the model pulls full
-instructions with `skill_use`.
+instructions with `skill_use`. `aeon-seed-runtime-skills` installs Aeon's
+default operational skills, including local model awareness and designated model
+routing.
 
 **Skill Forge (`aeon.skills.forge`).** Research a topic → draft a skill grounded
 in the report → a rubric **critique gate** (regenerate on fail) → a live **A/B

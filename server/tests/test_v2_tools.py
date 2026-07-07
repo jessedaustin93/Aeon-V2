@@ -5,7 +5,9 @@ from aeon.tools import all_handlers
 from aeon.tools import fs as fs_mod
 from aeon.tools import memory as memory_mod
 from aeon.tools import mesh as mesh_mod
+from aeon.tools import models as models_mod
 from aeon.tools import snifferops as snifferops_mod
+from aeon.tools import ssh as ssh_mod
 from aeon.tools import vault as vault_mod
 from aeon.tools import web as web_mod
 
@@ -30,8 +32,74 @@ def test_all_handlers_names_match_definitions(config):
 def test_outward_facing_tools_require_approval(config):
     _, definitions = all_handlers(config)
     gated = {d.name for d in definitions if d.approval_required}
-    # Shell execution, outbound mesh posts, and service mutation are gated.
-    assert gated == {"shell_run", "mesh_post", "service_control"}
+    # Shell execution, SSH, outbound mesh posts, and service mutation are gated.
+    assert gated == {"shell_run", "ssh_run", "mesh_post", "service_control"}
+
+
+# -------------------------------------------------------------------- models
+
+def test_model_status_reports_roles_workers_and_identity(config, monkeypatch):
+    monkeypatch.setenv("AEON_LLM_CHAT_MODEL", "ornith-chat")
+    monkeypatch.setenv("AEON_LLM_DEEP_MODEL", "ornith-deep")
+    monkeypatch.setenv("AEON_LLM_BASE_URL", "http://local:1234/v1")
+    monkeypatch.setattr(
+        "aeon.models.router.ChatClient.list_models",
+        lambda self: ["ornith-chat", "ornith-deep"],
+    )
+    result = models_mod.model_status({}, config)
+    assert "not Claude" in result["identity"]
+    assert result["roles"]["chat"]["model"] == "ornith-chat"
+    assert result["roles"]["chat"]["worker"] == "local"
+    assert result["workers"][0]["loaded_models"] == ["ornith-chat", "ornith-deep"]
+
+
+def test_model_delegate_calls_requested_role(config, monkeypatch):
+    from aeon.models.client import ChatDelta
+
+    monkeypatch.setenv("AEON_LLM_DEEP_MODEL", "ornith-deep")
+    monkeypatch.setenv("AEON_LLM_BASE_URL", "http://local:1234/v1")
+    seen = {}
+
+    def fake_chat(self, model, messages, tools=None, stream=False, temperature=None):
+        seen.update({"model": model, "messages": messages, "tools": tools, "stream": stream})
+        yield ChatDelta("text", text="deep answer")
+
+    monkeypatch.setattr("aeon.models.router.ChatClient.chat", fake_chat)
+    result = models_mod.model_delegate(
+        {"role": "deep", "system": "reason carefully", "prompt": "solve it"}, config
+    )
+    assert result["role"] == "deep"
+    assert result["model"] == "ornith-deep"
+    assert result["text"] == "deep answer"
+    assert seen["tools"] == []
+    assert seen["messages"][0]["role"] == "system"
+
+
+def test_ssh_run_requires_known_host(config, monkeypatch):
+    monkeypatch.setenv("AEON_SSH_HOSTS", "t3610,t5810b")
+    result = ssh_mod.ssh_run({"host": "unknown", "command": "hostname"}, config)
+    assert "error" in result
+    assert "t3610" in result["allowed_hosts"]
+
+
+def test_ssh_run_executes_known_host(config, monkeypatch):
+    monkeypatch.setenv("AEON_SSH_HOSTS", "t3610")
+    seen = {}
+
+    class Proc:
+        returncode = 0
+        stdout = "T3610\n"
+        stderr = ""
+
+    def fake_run(args, cwd=None, capture_output=False, text=False, timeout=0):
+        seen.update({"args": args, "cwd": cwd, "timeout": timeout})
+        return Proc()
+
+    monkeypatch.setattr(ssh_mod.subprocess, "run", fake_run)
+    result = ssh_mod.ssh_run({"host": "t3610", "command": "hostname"}, config)
+    assert result["stdout"] == "T3610\n"
+    assert seen["args"][:4] == ["ssh", "-o", "BatchMode=yes", "-o"]
+    assert "t3610" in seen["args"]
 
 
 # ------------------------------------------------------------------------ fs

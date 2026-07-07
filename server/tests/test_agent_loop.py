@@ -166,6 +166,8 @@ def test_system_prompt_injected(config):
     first = fake.requests[0]["messages"][0]
     assert first["role"] == "system"
     assert "Aeon" in first["content"]
+    assert "not Claude" in first["content"]
+    assert "model_status" in first["content"]
 
 
 def test_tools_disabled_sends_no_tools(config):
