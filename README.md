@@ -9,7 +9,7 @@ research, skills, and persistent memory — served from your own hardware.
 - **Memory:** append-only, human-governed, Obsidian-readable. Lives on the
   server at `AEON_DATA_DIR`, never in this repo.
 - **Mesh:** peers with the Agent Mesh hub; can route model calls to other
-  machines' LLM endpoints.
+  machines' LLM endpoints and read the live Grid Kernel machine/service map.
 - **Model awareness:** Aeon can inspect current role→model routing and delegate
   bounded subtasks to configured roles such as `chat` or `deep`.
 - **Self-scaffolded tasks:** background Tasks can ask the routed local model to

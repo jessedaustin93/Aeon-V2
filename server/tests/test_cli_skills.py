@@ -94,4 +94,5 @@ def test_seed_runtime_skills_creates_model_skills(data_root):
     names = {s.name for s in store.list_active()}
     assert "local-model-awareness" in names
     assert "designated-model-routing" in names
+    assert "grid-kernel-map" in names
     assert lint_skills([]) == 0

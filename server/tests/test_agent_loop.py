@@ -168,6 +168,7 @@ def test_system_prompt_injected(config):
     assert "Aeon" in first["content"]
     assert "not Claude" in first["content"]
     assert "model_status" in first["content"]
+    assert "mesh_map" in first["content"]
 
 
 def test_run_with_scaffold_drafts_then_executes(config):

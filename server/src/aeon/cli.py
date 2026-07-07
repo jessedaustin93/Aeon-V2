@@ -84,6 +84,33 @@ DEFAULT_RUNTIME_SKILLS = [
             "5. Summarize the remote command output and include errors plainly."
         ),
     ),
+    Skill(
+        name="grid-kernel-map",
+        description="Read the live Grid Kernel map of machines, agents, programs, and services",
+        body=(
+            "Use this skill when Jesse asks what machines are online, what services "
+            "are up or down, what the Grid Kernel/Agent Mesh map shows, where agents "
+            "are running, or how the lab/service topology currently looks.\n\n"
+            "1. Call `mesh_map` first with `include_raw` false and "
+            "`include_services` false unless Jesse specifically asks for raw or "
+            "per-service payloads. It is read-only and uses the same live Grid "
+            "Kernel sources as the World/Grid UI: stations, agents, programs, "
+            "kernel status, and telemetry.\n"
+            "2. Use the returned `summary_text` as the source of truth for the "
+            "first-pass answer. Do not add machines, services, or identities that "
+            "are not in the tool result.\n"
+            "3. Treat inventory and liveness as separate. Station entries describe "
+            "what should exist; telemetry/service state says what is currently "
+            "fresh and up/down.\n"
+            "4. Mention stale telemetry explicitly when `stale` flags are present "
+            "or when age_seconds exceeds the freshness threshold.\n"
+            "5. Summarize by machine: host state, service counts, notable down or "
+            "stale services, active agents/programs, and kernel status if relevant.\n"
+            "6. Do not use SSH for a first-pass map. Use `ssh_run` only for a "
+            "follow-up machine-specific inspection after explaining why it is "
+            "needed and waiting for approval."
+        ),
+    ),
 ]
 
 

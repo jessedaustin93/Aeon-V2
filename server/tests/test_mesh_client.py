@@ -68,3 +68,19 @@ def test_ack():
     MeshClient(_config(), http).ack(7)
     assert http.calls[0]["url"] == "http://hub:8787/api/messages/7/ack"
     assert http.calls[0]["method"] == "POST"
+
+
+def test_grid_kernel_read_endpoints():
+    http = FakeHttp({
+        ("GET", "http://hub:8787/api/agents"): [{"id": "aeon@t5810"}],
+        ("GET", "http://hub:8787/api/kernel/programs"): [{"id": "agent"}],
+        ("GET", "http://hub:8787/api/kernel/status"): {"programs": 1},
+        ("GET", "http://hub:8787/api/stations"): {"t5810": {"label": "T5810"}},
+        ("GET", "http://hub:8787/api/telemetry"): [{"key": "host:t5810"}],
+    })
+    client = MeshClient(_config(), http)
+    assert client.agents() == [{"id": "aeon@t5810"}]
+    assert client.kernel_programs() == [{"id": "agent"}]
+    assert client.kernel_status() == {"programs": 1}
+    assert client.stations() == {"t5810": {"label": "T5810"}}
+    assert client.telemetry() == [{"key": "host:t5810"}]

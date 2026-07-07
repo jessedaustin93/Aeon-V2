@@ -36,6 +36,70 @@ def test_outward_facing_tools_require_approval(config):
     assert gated == {"shell_run", "ssh_run", "mesh_post", "service_control"}
 
 
+# ---------------------------------------------------------------------- mesh
+
+def test_mesh_map_summarizes_grid_kernel(config, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    old = now - timedelta(seconds=900)
+
+    class FakeClient:
+        configured = True
+
+        class Cfg:
+            hub = "http://hub:8787"
+
+        config = Cfg()
+
+        def stations(self):
+            return {"t5810": {"label": "T5810"}, "_comment": "ignored"}
+
+        def telemetry(self):
+            return [
+                {
+                    "key": "host:t5810",
+                    "machine": "t5810",
+                    "kind": "host",
+                    "state": "ok",
+                    "detail": '{"load1": 1.2}',
+                    "ts": now.isoformat(),
+                },
+                {
+                    "key": "t5810.aeon",
+                    "machine": "t5810",
+                    "kind": "service",
+                    "state": "up",
+                    "detail": '{"latency_ms": 2}',
+                    "ts": old.isoformat(),
+                },
+            ]
+
+        def agents(self):
+            return [{"id": "aeon@t5810", "machine": "t5810", "status": "idle"}]
+
+        def kernel_programs(self):
+            return [{"id": "aeon@t5810", "sector": "t5810", "health": "healthy"}]
+
+        def kernel_status(self):
+            return {"programs": 1, "offline_programs": 0}
+
+    monkeypatch.setattr(mesh_mod, "MeshClient", lambda cfg: FakeClient())
+    result = mesh_mod.mesh_map({"stale_after_seconds": 300}, config)
+    assert result["kernel"]["programs"] == 1
+    assert result["totals"]["machines"] == 1
+    assert "Grid: 1 machines, 1 agents, 1 programs" in result["summary_text"]
+    machine = result["machines"][0]
+    assert machine["label"] == "T5810"
+    assert machine["host"]["metrics"]["load1"] == 1.2
+    assert machine["service_counts"]["up"] == 1
+    assert machine["agent_ids"] == ["aeon@t5810"]
+    assert machine["agent_status_counts"]["idle"] == 1
+    assert machine["program_ids"] == ["aeon@t5810"]
+    assert machine["program_health_counts"]["healthy"] == 1
+    assert "t5810.aeon stale" in machine["stale"][0]
+
+
 # -------------------------------------------------------------------- models
 
 def test_model_status_reports_roles_workers_and_identity(config, monkeypatch):

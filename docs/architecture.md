@@ -47,8 +47,8 @@ in the UI. Every execution is journaled.
 **Tools (`aeon.tools`).** `fs_read`/`fs_list` (scoped), `shell_run` (gated),
 `web_fetch`/`web_search`, `memory_search`/`memory_save`, `vault_search`/
 `vault_read` (read-only), `skill_use`, `model_status`, `model_delegate`,
-`ssh_run` (gated), and `mesh_post` (gated). Outward-facing or destructive tools
-require approval.
+`mesh_map` (read-only Grid Kernel machines/services), `ssh_run` (gated), and
+`mesh_post` (gated). Outward-facing or destructive tools require approval.
 
 **Background tasks.** The Tasks tab starts long-running checks through
 `/api/tasks`. Each run is saved under `memory/logs/task-runs/` with status,

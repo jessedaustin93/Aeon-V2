@@ -63,6 +63,9 @@ class MeshClient:
         url = self.config.hub + path
         return self._http(method, url, self._headers(), data)
 
+    def get(self, path: str) -> object:
+        return self._call("GET", path)
+
     def heartbeat(self, status: str = "idle") -> None:
         self._call("POST", "/api/heartbeat", {
             "agent_id": self.config.agent_id,
@@ -88,3 +91,23 @@ class MeshClient:
 
     def ack(self, message_id) -> None:
         self._call("POST", f"/api/messages/{message_id}/ack")
+
+    def agents(self) -> List[Dict]:
+        result = self.get("/api/agents")
+        return result if isinstance(result, list) else []
+
+    def kernel_programs(self) -> List[Dict]:
+        result = self.get("/api/kernel/programs")
+        return result if isinstance(result, list) else []
+
+    def kernel_status(self) -> Dict:
+        result = self.get("/api/kernel/status")
+        return result if isinstance(result, dict) else {}
+
+    def stations(self) -> Dict:
+        result = self.get("/api/stations")
+        return result if isinstance(result, dict) else {}
+
+    def telemetry(self) -> List[Dict]:
+        result = self.get("/api/telemetry")
+        return result if isinstance(result, list) else []

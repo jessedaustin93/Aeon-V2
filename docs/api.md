@@ -41,6 +41,10 @@ For `/api/tasks`, `self_scaffold: true` asks the routed model to draft a
 task-specific scaffold before normal Aeon tool execution begins. Aeon still owns
 approval gates, tool execution, logs, and the final task result.
 
+The agent-side `mesh_map` tool reads the live Grid Kernel map from the hub:
+stations, telemetry, agents, programs, and kernel status. It is read-only and
+does not require an approval gate.
+
 The **forge** stream emits `text` progress lines and ends in either `done`
 (`{skill, evidence}` — a validated proposal) or `error` (`{error, ...}` — the
 skill was rejected by the critique or A/B gate; no proposal is created).
