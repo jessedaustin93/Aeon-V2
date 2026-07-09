@@ -136,8 +136,21 @@
 .log-approve-btns { display: flex; gap: 8px; }
 .log-approve-btns button { flex: 1; padding: 7px; }
 
+/* Drag handle for resizing the signal log (shown only in the stacked layout). */
+.log-resize {
+  display: none;
+  height: 11px;
+  margin: -14px -14px 8px;
+  cursor: ns-resize;
+  flex: 0 0 auto;
+  background: linear-gradient(var(--ink-faint), var(--ink-faint)) center / 34px 2px no-repeat;
+  border-bottom: 1px solid var(--line-soft);
+}
+.log-resize:hover { background-color: var(--panel); }
+
 @media (max-width: 980px) {
-  .chat { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .chat { grid-template-columns: 1fr; grid-template-rows: auto 1fr var(--log-h, 160px); }
   .chat-sessions { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line-soft); }
-  .chat-log { display: none; }
+  .chat-log { border-left: none; border-top: 1px solid var(--line-soft); }
+  .log-resize { display: block; }
 }

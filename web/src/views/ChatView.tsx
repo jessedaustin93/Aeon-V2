@@ -20,7 +20,23 @@ export function ChatView() {
   const [streaming, setStreaming] = useState(false);
   const [live, setLive] = useState("");
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [logH, setLogH] = useState(160);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Drag the handle above the signal log to size it up/down (stacked layout).
+  function startLogResize(e: React.PointerEvent) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = logH;
+    const move = (ev: PointerEvent) =>
+      setLogH(Math.min(520, Math.max(52, startH + (startY - ev.clientY))));
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
 
   const loadSessions = useCallback(() => {
     api.sessions().then((r) => setSessions(r.sessions)).catch(() => {});
@@ -68,14 +84,17 @@ export function ChatView() {
       await stream("/api/chat", { session_id: sessionId, message: text }, (ev: AgentEvent) => {
         handleEvent(ev, (t) => {
           acc += t;
-          setLive(acc);
+          // Local models tend to prepend blank lines; trim the leading
+          // whitespace so replies don't start with 2-3 empty lines.
+          setLive(acc.replace(/^\s+/, ""));
         });
       });
     } catch {
       acc += "\n\n[connection lost]";
     }
     setStreaming(false);
-    if (acc) setMessages((m) => [...m, { role: "assistant", content: acc }]);
+    const reply = acc.trim();
+    if (reply) setMessages((m) => [...m, { role: "assistant", content: reply }]);
     setLive("");
     loadSessions();
   }
@@ -121,7 +140,7 @@ export function ChatView() {
   }
 
   return (
-    <div className="view chat">
+    <div className="view chat" style={{ "--log-h": `${logH}px` } as React.CSSProperties}>
       <div className="chat-sessions">
         <button className="btn-primary new-chat" onClick={() => setActiveId(null)}>
           + New session
@@ -180,6 +199,7 @@ export function ChatView() {
       </div>
 
       <aside className="chat-log">
+        <div className="log-resize" onPointerDown={startLogResize} title="Drag to resize" />
         <div className="readout log-head">Signal log</div>
         {log.length === 0 && <div className="empty" style={{ padding: 24 }}>No tool activity</div>}
         {log.map((e) => (
