@@ -4,6 +4,11 @@
   height: 100%;
   min-height: 0;
 }
+/* Win over `.view { display: flex }` (equal specificity, app.css loads later),
+   so the intended grid — and the resizable --log-h row — actually applies. */
+.view.chat {
+  display: grid;
+}
 
 /* ---- sessions ---- */
 .chat-sessions {
