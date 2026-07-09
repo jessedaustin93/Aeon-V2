@@ -15,6 +15,26 @@ from aeon.core.tools import ToolDefinition
 _SERVICE_RE = re.compile(r"^[A-Za-z0-9@._-]+$")
 _ACTIONS = {"start", "stop", "restart"}
 TIMEOUT = 20
+REMOTE_SERVICE_HINTS = {
+    "snifferops": {
+        "host": "t5810b",
+        "active": "not_applicable_on_this_host",
+        "message": (
+            "SnifferOps runs on T5810B, not on the local Aeon/T5810 host. "
+            "Use snifferops_telemetry for hub health, or ssh_run with "
+            "host='t5810b' for snifferops.service checks."
+        ),
+    },
+    "snifferops.service": {
+        "host": "t5810b",
+        "active": "not_applicable_on_this_host",
+        "message": (
+            "SnifferOps runs on T5810B, not on the local Aeon/T5810 host. "
+            "Use snifferops_telemetry for hub health, or ssh_run with "
+            "host='t5810b' for snifferops.service checks."
+        ),
+    },
+}
 
 
 def _valid_service(name: str) -> bool:
@@ -32,6 +52,9 @@ def service_status(arguments: Dict, config: Config) -> Dict:
     service = arguments["service"]
     if not _valid_service(service):
         return {"error": f"invalid service name: {service!r}"}
+    remote_hint = REMOTE_SERVICE_HINTS.get(service.lower())
+    if remote_hint:
+        return {"service": service, **remote_hint}
     active = _systemctl(["is-active", service])
     status = _systemctl(["status", service, "--no-pager", "--lines", "10"])
     return {
