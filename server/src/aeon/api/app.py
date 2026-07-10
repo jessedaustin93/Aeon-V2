@@ -86,7 +86,7 @@ def create_app(config: Optional[Config] = None) -> FastAPI:
 
     auth = Depends(_check_auth)
 
-    @app.get("/api/health", dependencies=[auth])
+    @app.get("/api/health")
     def health() -> Dict:
         return {
             "status": "ok",
