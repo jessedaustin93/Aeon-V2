@@ -59,6 +59,27 @@ def test_text_only_turn(config):
     assert events[-1].data["text"] == "hi jesse"
 
 
+def test_direct_tool_emits_report_verbatim_and_ends_turn(config):
+    # lab_health is a `direct` tool: the loop must present its `report` field
+    # verbatim and END the turn, so the (small, fabrication-prone) model never
+    # gets a second turn to paraphrase it. Only one turn is scripted — if the
+    # loop tried to continue, FakeClient.chat would IndexError.
+    turns = [
+        [ChatDelta("tool_call", tool_calls=[tool_call("lab_health", {})]),
+         ChatDelta("finish", finish_reason="tool_calls")],
+    ]
+    loop, fake = make_loop(config, turns)
+    events = list(loop.run([{"role": "user", "content": "lab health?"}]))
+    kinds = [e.kind for e in events]
+    assert kinds == ["tool_call", "tool_result", "text", "done"]
+    # text and done carry the same deterministic report string.
+    assert events[-1].data["text"] == events[-2].data["text"]
+    # Hub isn't configured in tests, so the report is the deterministic refusal
+    # ("won't guess") — never a fabricated machine list.
+    assert "won't guess" in events[-1].data["text"]
+    assert len(fake.requests) == 1  # model called exactly once; no paraphrase turn
+
+
 def test_tool_roundtrip(config):
     note = config.base_path / "note.txt"
     note.write_text("secret contents", encoding="utf-8")

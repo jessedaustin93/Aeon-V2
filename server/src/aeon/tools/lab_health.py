@@ -170,6 +170,7 @@ DEFINITIONS = [
         parameters={"type": "object", "properties": {}},
         tags=["mesh", "grid", "health"],
         approval_required=False,
+        direct=True,
     )
 ]
 

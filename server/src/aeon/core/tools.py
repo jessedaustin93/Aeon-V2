@@ -40,7 +40,7 @@ class ToolDefinition:
 
     __slots__ = (
         "name", "description", "parameters",
-        "tags", "layer", "enabled", "approval_required", "registered_at",
+        "tags", "layer", "enabled", "approval_required", "registered_at", "direct",
     )
 
     def __init__(
@@ -53,6 +53,7 @@ class ToolDefinition:
         enabled: bool = True,
         approval_required: bool = True,
         registered_at: Optional[str] = None,
+        direct: bool = False,
     ):
         if not name or not name.strip():
             raise ValueError("Tool name must be a non-empty string")
@@ -68,6 +69,10 @@ class ToolDefinition:
         self.enabled: bool = enabled
         self.approval_required: bool = approval_required
         self.registered_at: str = registered_at or utc_now_iso()
+        # When True, the agent loop presents this tool's `report` field to the
+        # user verbatim and ends the turn, instead of feeding it back to the
+        # model (which paraphrases and, on small local models, fabricates).
+        self.direct: bool = direct
 
     def to_dict(self) -> Dict:
         return {

@@ -151,7 +151,12 @@ class AgentLoop:
                 }
             )
             for call in tool_calls:
-                yield from self._execute(call, convo)
+                for event in self._execute(call, convo):
+                    yield event
+                    # A `direct` tool presents its report verbatim and ends the
+                    # turn, so the model never gets to rewrite (and fabricate) it.
+                    if event.kind == "done":
+                        return
 
         yield AgentEvent("error", {"error": "max iterations reached"})
 
@@ -272,3 +277,10 @@ class AgentLoop:
                 "content": json.dumps(result),
             }
         )
+        # Direct tools own the final answer: emit their report verbatim and end
+        # the turn so the model cannot paraphrase or fabricate over it.
+        if definition and getattr(definition, "direct", False) and isinstance(result, dict):
+            report = result.get("report")
+            if isinstance(report, str) and report.strip():
+                yield AgentEvent("text", {"text": report})
+                yield AgentEvent("done", {"text": report})
