@@ -36,8 +36,11 @@ AUTH = {"Authorization": "Bearer test-token"}
 
 
 def test_requires_token(client):
-    assert client.get("/api/health").status_code == 401
-    assert client.get("/api/health", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    # /api/health is intentionally public (liveness probe); auth is enforced on
+    # data endpoints instead.
+    assert client.get("/api/health").status_code == 200
+    assert client.get("/api/models").status_code == 401
+    assert client.get("/api/models", headers={"Authorization": "Bearer wrong"}).status_code == 401
 
 
 def test_session_id_traversal_rejected(client):
@@ -258,8 +261,11 @@ def test_spa_serving_and_api_precedence(monkeypatch, tmp_path):
     assert "Aeon" in deep.text
     # Real static file is served directly.
     assert c.get("/manifest.webmanifest").status_code == 200
-    # The SPA catch-all must NOT shadow the API (auth still enforced).
-    assert c.get("/api/health").status_code == 401
+    # The SPA catch-all must NOT shadow the API: /api/health is handled by the
+    # API (public liveness, returns JSON), and gated endpoints still enforce auth.
+    health = c.get("/api/health")
+    assert health.status_code == 200 and health.json()["status"] == "ok"
+    assert c.get("/api/models").status_code == 401
     # Traversal outside dist/ falls back to index.html, never leaks a file.
     secret = tmp_path / "secret.txt"
     secret.write_text("TOPSECRET", encoding="utf-8")
