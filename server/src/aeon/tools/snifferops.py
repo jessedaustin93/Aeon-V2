@@ -4,7 +4,8 @@ import os
 import urllib.error
 import urllib.request
 from collections import Counter
-from typing import Dict, Iterable, List
+from datetime import datetime, timezone
+from typing import Dict, Iterable, List, Optional
 
 from aeon.core.config import Config
 from aeon.core.tools import ToolDefinition
@@ -107,6 +108,142 @@ def snifferops_telemetry(arguments: Dict, config: Config) -> Dict:
     return payload
 
 
+def _parse_window_seconds(value) -> int:
+    """'24h' / '7d' / '90m' / '45s' / bare number (hours) -> seconds. Default 24h."""
+    if value is None:
+        return 24 * 3600
+    text = str(value).strip().lower()
+    if not text:
+        return 24 * 3600
+    units = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+    if text[-1] in units:
+        try:
+            return max(60, int(float(text[:-1]) * units[text[-1]]))
+        except ValueError:
+            return 24 * 3600
+    try:  # bare number = hours
+        return max(60, int(float(text) * 3600))
+    except ValueError:
+        return 24 * 3600
+
+
+def _signal_seen_at(signal: Dict) -> Optional[datetime]:
+    """Parse a signal's lastSeen (ISO string or epoch ms/s) to aware UTC datetime."""
+    value = signal.get("lastSeen") or signal.get("firstSeen")
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        secs = value / 1000.0 if value > 1e12 else float(value)
+        try:
+            return datetime.fromtimestamp(secs, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    try:
+        ts = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+
+
+def _fmt_age(seconds: int) -> str:
+    if seconds < 90:
+        return f"{seconds}s ago"
+    if seconds < 5400:
+        return f"{seconds // 60}m ago"
+    if seconds < 172800:
+        return f"{seconds // 3600}h ago"
+    return f"{seconds // 86400}d ago"
+
+
+def snifferops_signals(arguments: Dict, config: Config) -> Dict:
+    """Read-only: signals SnifferOps has captured within a time window.
+
+    Returns a deterministic `report` (direct-output) plus structured `data`, so
+    the model relays real captures instead of inventing them.
+    """
+    base = _base_url(config)
+    window_s = _parse_window_seconds(arguments.get("window"))
+    wanted_type = str(arguments.get("type", "") or "").strip().upper()
+    limit = _limit(arguments.get("limit", 25))
+
+    awareness = _fetch_json(f"{base}/snifferops/awareness")
+    if awareness.get("error"):
+        return {
+            "report": (
+                f"SnifferOps is unreachable ({awareness['error']}). "
+                "I can't see its captures right now, so I won't guess."
+            ),
+            "data": {"source": base, "error": awareness["error"]},
+        }
+
+    now = datetime.now(timezone.utc)
+    all_signals = awareness.get("signals", [])
+    if not isinstance(all_signals, list):
+        all_signals = []
+
+    in_window: List[Dict] = []
+    for sig in all_signals:
+        if wanted_type and str(sig.get("type", "")).upper() != wanted_type:
+            continue
+        seen = _signal_seen_at(sig)
+        if seen is None:
+            continue
+        age = int((now - seen).total_seconds())
+        if 0 <= age <= window_s:
+            in_window.append({"signal": sig, "age": age})
+
+    in_window.sort(key=lambda x: x["age"])  # most recent first
+    by_type = Counter(str(x["signal"].get("type", "unknown")) for x in in_window)
+    encrypted = sum(1 for x in in_window if x["signal"].get("isEncrypted"))
+    threats = Counter(str(x["signal"].get("threatLevel", "UNKNOWN")) for x in in_window)
+
+    win_label = arguments.get("window") or "24h"
+    node = awareness.get("nodeName", "snifferops")
+    type_part = f" ({wanted_type})" if wanted_type else ""
+    lines = [
+        f"# SnifferOps captures — last {win_label}{type_part} · node: {node}",
+        "",
+        f"- {len(in_window)} signals captured in window (of {len(all_signals)} tracked total)",
+    ]
+    if in_window:
+        lines.append("- by type: " + ", ".join(f"{t} {n}" for t, n in sorted(by_type.items())))
+        lines.append(
+            f"- encrypted: {encrypted} · threat levels: "
+            + ", ".join(f"{k} {v}" for k, v in sorted(threats.items()))
+        )
+        lines.append("")
+        lines.append("## Most recent")
+        for x in in_window[:limit]:
+            s = x["signal"]
+            name = str(s.get("name") or s.get("id") or "unnamed").strip()
+            strength = s.get("signalStrength")
+            enc = " · encrypted" if s.get("isEncrypted") else ""
+            freq = s.get("frequencyHz")
+            freq_part = f" · {float(freq) / 1e6:.1f} MHz" if freq else ""
+            lines.append(
+                f"- [{s.get('type', '?')}] {name[:70]} · strength {strength}"
+                f"{freq_part}{enc} · seen {_fmt_age(x['age'])}"
+            )
+    else:
+        lines.append(
+            "- nothing captured in this window. Widen `window` (e.g. '7d') if you "
+            "expected activity — this is the real state, not an error."
+        )
+
+    report = "\n".join(lines).rstrip() + "\n"
+    return {
+        "report": report,
+        "data": {
+            "source": base,
+            "window_seconds": window_s,
+            "capturedInWindow": len(in_window),
+            "totalTracked": len(all_signals),
+            "byType": dict(sorted(by_type.items())),
+            "signals": [x["signal"] for x in in_window[:limit]],
+        },
+    }
+
+
 DEFINITIONS = [
     ToolDefinition(
         name="snifferops_telemetry",
@@ -134,7 +271,39 @@ DEFINITIONS = [
         },
         tags=["snifferops", "telemetry", "sdr"],
         approval_required=False,
-    )
+    ),
+    ToolDefinition(
+        name="snifferops_signals",
+        description=(
+            "Read-only: RF/network signals SnifferOps captured within a time window "
+            "(e.g. 'what signals did we pick up in the last 24h/7d'). Optional type "
+            "filter (WIFI, BLE, BLUETOOTH, CELLULAR, RTL_SDR). No approval needed. "
+            "Presents a factual capture report as-is."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "window": {
+                    "type": "string",
+                    "description": "Time window: '24h', '7d', '90m', '45s', or a number of hours. Default 24h.",
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Optional signal type filter: WIFI, BLE, BLUETOOTH, CELLULAR, RTL_SDR.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max recent signals to list, capped at 200. Default 25.",
+                },
+            },
+        },
+        tags=["snifferops", "signals", "sdr", "rf"],
+        approval_required=False,
+        direct=True,
+    ),
 ]
 
-HANDLERS = {"snifferops_telemetry": snifferops_telemetry}
+HANDLERS = {
+    "snifferops_telemetry": snifferops_telemetry,
+    "snifferops_signals": snifferops_signals,
+}
