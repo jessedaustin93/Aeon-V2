@@ -87,6 +87,12 @@ Add: for lab/machine/health/process/status questions, call `lab_health` and pres
 its `report` field directly; do not add, rename, or re-count machines, agents,
 programs, or processes beyond the tool output. Keep existing `mesh_map` guidance.
 
+**Hard no-fabrication rule (applies to everything, not just status):** never
+invent or guess names, counts, hosts, IDs, values, or data. Report only what a
+tool returned or was directly observed. If the information was not observed, say
+so plainly ("I don't have that" / "I can't see that") — never a plausible-sounding
+guess. Observed data only.
+
 ### Master Vault
 
 `AEON_V1_MASTER_VAULT_PATH` is already set to `/home/t5810/Master-Vault` and enabled.
