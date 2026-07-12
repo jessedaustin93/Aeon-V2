@@ -318,8 +318,8 @@ def test_mesh_post_configured(config, monkeypatch):
 
 def test_snifferops_telemetry_summarizes_and_filters(config, monkeypatch):
     def fake_fetch(url, timeout=10.0):
-        if url.endswith("/snifferops/health"):
-            return {"ok": True}
+        if url.endswith("/ethrox-detect/health"):
+            return {"ok": True, "product": "Ethrox Detect"}
         return {
             "totalSignals": 3,
             "signals": [
@@ -331,11 +331,31 @@ def test_snifferops_telemetry_summarizes_and_filters(config, monkeypatch):
 
     monkeypatch.setattr(snifferops_mod, "_fetch_json", fake_fetch)
     result = snifferops_mod.snifferops_telemetry({"type": "RTL_SDR", "limit": 1}, config)
-    assert result["health"] == {"ok": True}
+    assert result["health"] == {"ok": True, "product": "Ethrox Detect"}
     assert result["totalSignals"] == 3
     assert result["byType"] == {"RTL_SDR": 2, "WiFi": 1}
     assert result["filteredSignals"] == 2
     assert result["signals"] == [{"type": "RTL_SDR", "name": "RF B", "signalStrength": -10}]
+
+
+def test_ethrox_detect_telemetry_alias(config, monkeypatch):
+    fetched = []
+
+    def fake_fetch(url, timeout=10.0):
+        fetched.append(url)
+        if url.endswith("/ethrox-detect/health"):
+            return {"ok": True, "product": "Ethrox Detect"}
+        if url.endswith("/ethrox-detect/awareness"):
+            return {"signals": [], "totalSignals": 0}
+        raise AssertionError(url)
+
+    monkeypatch.setattr(snifferops_mod, "_fetch_json", fake_fetch)
+    result = snifferops_mod.HANDLERS["ethrox_detect_telemetry"]({}, config)
+    assert result["health"]["product"] == "Ethrox Detect"
+    assert fetched == [
+        "http://100.121.48.64:8766/ethrox-detect/health",
+        "http://100.121.48.64:8766/ethrox-detect/awareness",
+    ]
 
 
 def test_vault_unconfigured_returns_error(config):

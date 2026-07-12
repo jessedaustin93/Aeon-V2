@@ -48,7 +48,25 @@ def test_status_redirects_snifferops_to_t5810b(config, monkeypatch):
     assert called is False
     assert r["active"] == "not_applicable_on_this_host"
     assert r["host"] == "t5810b"
-    assert "snifferops_telemetry" in r["message"]
+    assert "ethrox_detect_telemetry" in r["message"]
+    assert "ethrox-detect.service" in r["message"]
+
+
+def test_status_redirects_ethrox_detect_to_t5810b(config, monkeypatch):
+    called = False
+
+    def fake_systemctl(args):
+        nonlocal called
+        called = True
+        return subprocess.CompletedProcess(args, 0, stdout="disabled", stderr="")
+
+    monkeypatch.setattr(services, "_systemctl", fake_systemctl)
+    r = service_status({"service": "ethrox-detect.service"}, config)
+
+    assert called is False
+    assert r["active"] == "not_applicable_on_this_host"
+    assert r["host"] == "t5810b"
+    assert "ethrox_detect_telemetry" in r["message"]
 
 
 def test_control_start(config, monkeypatch):

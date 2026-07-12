@@ -1,4 +1,8 @@
-"""SnifferOps telemetry tool for RF/network awareness from the lab hub."""
+"""Ethrox Detect telemetry tool for RF/network awareness from the lab hub.
+
+The historical snifferops_* tool names are kept as compatibility aliases for
+older Aeon prompts and skills.
+"""
 import json
 import os
 import urllib.error
@@ -15,19 +19,23 @@ MAX_LIMIT = 200
 
 
 def _base_url(config: Config) -> str:
-    value = os.environ.get("AEON_SNIFFEROPS_BASE_URL", DEFAULT_BASE_URL)
+    value = (
+        os.environ.get("AEON_ETHROX_DETECT_BASE_URL")
+        or os.environ.get("AEON_SNIFFEROPS_BASE_URL")
+        or DEFAULT_BASE_URL
+    )
     return value.rstrip("/")
 
 
 def _fetch_json(url: str, timeout: float = 10.0) -> Dict:
-    req = urllib.request.Request(url, headers={"User-Agent": "Aeon-V2 SnifferOps"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Ethrox AI Ethrox Detect"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8", errors="replace"))
     except urllib.error.URLError as exc:
         return {"error": str(exc)}
     except json.JSONDecodeError as exc:
-        return {"error": f"invalid json from SnifferOps: {exc}"}
+        return {"error": f"invalid json from Ethrox Detect: {exc}"}
 
 
 def _limit(value, default: int = 25) -> int:
@@ -67,20 +75,20 @@ def _sort_key(signal: Dict) -> float:
 
 
 def snifferops_telemetry(arguments: Dict, config: Config) -> Dict:
-    """Return concise SnifferOps health and awareness telemetry."""
+    """Return concise Ethrox Detect health and awareness telemetry."""
     mode = str(arguments.get("mode", "overview")).strip().lower()
     limit = _limit(arguments.get("limit", 25))
     signal_type = str(arguments.get("type", "") or "")
     min_strength = arguments.get("min_strength")
     base = _base_url(config)
 
-    health = _fetch_json(f"{base}/snifferops/health")
+    health = _fetch_json(f"{base}/ethrox-detect/health")
     if mode == "health":
         return {"source": base, "health": health}
     if health.get("error"):
         return {"source": base, "health": health, "error": health["error"]}
 
-    awareness = _fetch_json(f"{base}/snifferops/awareness")
+    awareness = _fetch_json(f"{base}/ethrox-detect/awareness")
     if awareness.get("error"):
         return {"source": base, "health": health, "awareness": awareness, "error": awareness["error"]}
 
@@ -156,7 +164,7 @@ def _fmt_age(seconds: int) -> str:
 
 
 def snifferops_signals(arguments: Dict, config: Config) -> Dict:
-    """Read-only: signals SnifferOps has captured within a time window.
+    """Read-only: signals Ethrox Detect has captured within a time window.
 
     Returns a deterministic `report` (direct-output) plus structured `data`, so
     the model relays real captures instead of inventing them.
@@ -166,11 +174,11 @@ def snifferops_signals(arguments: Dict, config: Config) -> Dict:
     wanted_type = str(arguments.get("type", "") or "").strip().upper()
     limit = _limit(arguments.get("limit", 25))
 
-    awareness = _fetch_json(f"{base}/snifferops/awareness")
+    awareness = _fetch_json(f"{base}/ethrox-detect/awareness")
     if awareness.get("error"):
         return {
             "report": (
-                f"SnifferOps is unreachable ({awareness['error']}). "
+                f"Ethrox Detect is unreachable ({awareness['error']}). "
                 "I can't see its captures right now, so I won't guess."
             ),
             "data": {"source": base, "error": awareness["error"]},
@@ -198,10 +206,10 @@ def snifferops_signals(arguments: Dict, config: Config) -> Dict:
     threats = Counter(str(x["signal"].get("threatLevel", "UNKNOWN")) for x in in_window)
 
     win_label = arguments.get("window") or "24h"
-    node = awareness.get("nodeName", "snifferops")
+    node = awareness.get("nodeName", "ethrox-detect")
     type_part = f" ({wanted_type})" if wanted_type else ""
     lines = [
-        f"# SnifferOps captures — last {win_label}{type_part} · node: {node}",
+        f"# Ethrox Detect captures - last {win_label}{type_part} · node: {node}",
         "",
         f"- {len(in_window)} signals captured in window (of {len(all_signals)} tracked total)",
     ]
@@ -247,7 +255,7 @@ def snifferops_signals(arguments: Dict, config: Config) -> Dict:
 DEFINITIONS = [
     ToolDefinition(
         name="snifferops_telemetry",
-        description="Query the SnifferOps hub for health, RF/network signal counts, and recent telemetry.",
+        description="Compatibility alias: query the Ethrox Detect hub for health, RF/network signal counts, and recent telemetry.",
         parameters={
             "type": "object",
             "properties": {
@@ -269,13 +277,13 @@ DEFINITIONS = [
                 },
             },
         },
-        tags=["snifferops", "telemetry", "sdr"],
+        tags=["ethrox-detect", "snifferops", "telemetry", "sdr"],
         approval_required=False,
     ),
     ToolDefinition(
         name="snifferops_signals",
         description=(
-            "Read-only: RF/network signals SnifferOps captured within a time window "
+            "Compatibility alias: read-only RF/network signals Ethrox Detect captured within a time window "
             "(e.g. 'what signals did we pick up in the last 24h/7d'). Optional type "
             "filter (WIFI, BLE, BLUETOOTH, CELLULAR, RTL_SDR). No approval needed. "
             "Presents a factual capture report as-is."
@@ -297,7 +305,63 @@ DEFINITIONS = [
                 },
             },
         },
-        tags=["snifferops", "signals", "sdr", "rf"],
+        tags=["ethrox-detect", "snifferops", "signals", "sdr", "rf"],
+        approval_required=False,
+        direct=True,
+    ),
+    ToolDefinition(
+        name="ethrox_detect_telemetry",
+        description="Query the Ethrox Detect hub for health, RF/network signal counts, and recent telemetry.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "description": "overview, health, or signals. Defaults to overview.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max signals to return, capped at 200. Defaults to 25.",
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Optional signal type filter such as RTL_SDR, WiFi, or Bluetooth.",
+                },
+                "min_strength": {
+                    "type": "number",
+                    "description": "Optional minimum signalStrength filter.",
+                },
+            },
+        },
+        tags=["ethrox-detect", "telemetry", "sdr"],
+        approval_required=False,
+    ),
+    ToolDefinition(
+        name="ethrox_detect_signals",
+        description=(
+            "Read-only: RF/network signals Ethrox Detect captured within a time window "
+            "(e.g. 'what signals did we pick up in the last 24h/7d'). Optional type "
+            "filter (WIFI, BLE, BLUETOOTH, CELLULAR, RTL_SDR). No approval needed. "
+            "Presents a factual capture report as-is."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "window": {
+                    "type": "string",
+                    "description": "Time window: '24h', '7d', '90m', '45s', or a number of hours. Default 24h.",
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Optional signal type filter: WIFI, BLE, BLUETOOTH, CELLULAR, RTL_SDR.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max recent signals to list, capped at 200. Default 25.",
+                },
+            },
+        },
+        tags=["ethrox-detect", "signals", "sdr", "rf"],
         approval_required=False,
         direct=True,
     ),
@@ -306,4 +370,6 @@ DEFINITIONS = [
 HANDLERS = {
     "snifferops_telemetry": snifferops_telemetry,
     "snifferops_signals": snifferops_signals,
+    "ethrox_detect_telemetry": snifferops_telemetry,
+    "ethrox_detect_signals": snifferops_signals,
 }

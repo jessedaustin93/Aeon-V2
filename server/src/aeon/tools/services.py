@@ -20,18 +20,36 @@ REMOTE_SERVICE_HINTS = {
         "host": "t5810b",
         "active": "not_applicable_on_this_host",
         "message": (
-            "SnifferOps runs on T5810B, not on the local Aeon/T5810 host. "
-            "Use snifferops_telemetry for hub health, or ssh_run with "
-            "host='t5810b' for snifferops.service checks."
+            "Ethrox Detect runs on T5810B, not on the local Aeon/T5810 host. "
+            "Use ethrox_detect_telemetry for hub health, or ssh_run with "
+            "host='t5810b' for ethrox-detect.service checks."
         ),
     },
     "snifferops.service": {
         "host": "t5810b",
         "active": "not_applicable_on_this_host",
         "message": (
-            "SnifferOps runs on T5810B, not on the local Aeon/T5810 host. "
-            "Use snifferops_telemetry for hub health, or ssh_run with "
-            "host='t5810b' for snifferops.service checks."
+            "Ethrox Detect replaced the old SnifferOps service on T5810B. "
+            "Use ethrox_detect_telemetry for hub health, or ssh_run with "
+            "host='t5810b' for ethrox-detect.service checks."
+        ),
+    },
+    "ethrox-detect": {
+        "host": "t5810b",
+        "active": "not_applicable_on_this_host",
+        "message": (
+            "Ethrox Detect runs on T5810B, not on the local Aeon/T5810 host. "
+            "Use ethrox_detect_telemetry for hub health, or ssh_run with "
+            "host='t5810b' for ethrox-detect.service checks."
+        ),
+    },
+    "ethrox-detect.service": {
+        "host": "t5810b",
+        "active": "not_applicable_on_this_host",
+        "message": (
+            "Ethrox Detect runs on T5810B, not on the local Aeon/T5810 host. "
+            "Use ethrox_detect_telemetry for hub health, or ssh_run with "
+            "host='t5810b' for ethrox-detect.service checks."
         ),
     },
 }
